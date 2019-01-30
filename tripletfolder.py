@@ -4,6 +4,7 @@ import numpy as np
 import random
 import torch
 
+
 class TripletFolder(datasets.ImageFolder):
 
     def __init__(self, root, transform):
@@ -12,27 +13,27 @@ class TripletFolder(datasets.ImageFolder):
         self.targets = targets
         cams = []
         for s in self.samples:
-            cams.append( self._get_cam_id(s[0]) )
+            cams.append(self._get_cam_id(s[0]))
         self.cams = np.asarray(cams)
 
     def _get_cam_id(self, path):
         camera_id = []
         filename = os.path.basename(path)
         camera_id = filename.split('c')[1][0]
-        #camera_id = filename.split('_')[2][0:2]
-        return int(camera_id)-1
+        # camera_id = filename.split('_')[2][0:2]
+        return int(camera_id) - 1
 
     def _get_pos_sample(self, target, index):
         pos_index = np.argwhere(self.targets == target)
         pos_index = pos_index.flatten()
         pos_index = np.setdiff1d(pos_index, index)
-        rand = random.randint(0, len(pos_index)-1)
+        rand = random.randint(0, len(pos_index) - 1)
         return self.samples[pos_index[rand]]
 
     def _get_neg_sample(self, target):
         neg_index = np.argwhere(self.targets != target)
         neg_index = neg_index.flatten()
-        rand = random.randint(0,len(neg_index)-1)
+        rand = random.randint(0, len(neg_index) - 1)
         return self.samples[neg_index[rand]]
 
     def __getitem__(self, index):
