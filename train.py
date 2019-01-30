@@ -44,8 +44,10 @@ parser.add_argument('--alpha', default=1.0, type=float, help='alpha')
 parser.add_argument('--erasing_p', default=0, type=float, help='Random Erasing probability, in [0,1]')
 parser.add_argument('--use_dense', action='store_true', help='use densenet121')
 parser.add_argument('--PCB', action='store_true', help='use PCB+ResNet50')
-opt = parser.parse_args()
+parser.add_argument('--net_loss_model', default=0, type=int, help='net_loss_model')
 
+opt = parser.parse_args()
+print('net_loss_model = %d' % opt.net_loss_model)
 data_dir = opt.data_dir
 name = opt.name
 str_ids = opt.gpu_ids.split(',')
@@ -217,9 +219,15 @@ def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=
                 _, n_preds = torch.max(nscore.data, 1)
                 loss_id = criterion(outputs, labels)
                 loss_verif = (criterion(pscore, labels_0) + criterion(nscore, labels_1)) * 0.5 * opt.alpha
-                # loss = loss_id + loss_verif
-                # loss = loss_verif
-                loss = loss_id
+                if opt.net_loss_model == 0:
+                    loss = loss_id + loss_verif
+                elif opt.net_loss_model == 1:
+                    loss = loss_verif
+                elif opt.net_loss_model == 2:
+                    loss = loss_id
+                else:
+                    print('opt.net_loss_model = %s    error !!!' % opt.net_loss_model)
+                    exit()
                 # backward + optimize only if in training phase
                 if phase == 'train':
                     loss.backward()
