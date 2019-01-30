@@ -142,7 +142,7 @@ def extract_feature(model, dataloaders):
         count += n
         print(count)
         if opt.use_dense:
-            ff = torch.FloatTensor(n, 1024).zero_().cuda()
+            ff = torch.FloatTensor(n, 512).zero_().cuda()
         else:
             ff = torch.FloatTensor(n, 512).zero_().cuda()
         if opt.PCB:
