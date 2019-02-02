@@ -117,9 +117,9 @@ if opt.train_all:
     train_all = '_all'
 
 image_datasets = {}
-image_datasets['train'] = SiameseDataset(os.path.join(data_dir, 'train_all'),
+image_datasets['train'] = TripletFolder(os.path.join(data_dir, 'train_all'),
                                         data_transforms['train'])
-image_datasets['val'] = SiameseDataset(os.path.join(data_dir, 'val'),
+image_datasets['val'] = TripletFolder(os.path.join(data_dir, 'val'),
                                       data_transforms['val'])
 
 batch = {}
@@ -159,7 +159,7 @@ y_err['train'] = []
 y_err['val'] = []
 
 
-def train_model_original(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
+def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
     best_model_wts = model.state_dict()
@@ -205,8 +205,10 @@ def train_model_original(model, model_verif, criterion, optimizer, scheduler, nu
                 outputs, f = model(inputs)
                 _, pf = model(pos)
                 _, nf = model(neg)
-                pscore = model_verif(pf * f)
-                nscore = model_verif(nf * f)
+                # pscore = model_verif(pf * f)
+                # nscore = model_verif(nf * f)
+                pscore = model_verif((pf - f).pow(2))
+                nscore = model_verif((nf - f).pow(2))
                 # print(pf.requires_grad)
                 # loss
                 # ---------------------------------
@@ -282,7 +284,7 @@ def train_model_original(model, model_verif, criterion, optimizer, scheduler, nu
     return model
 
 
-def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
+def train_model_new(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
     best_model_wts = model.state_dict()
@@ -327,7 +329,8 @@ def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=
                 # forward
                 _, f1 = model(inputs[0])
                 _, f2 = model(inputs[1])
-                score = model_verif(f1 * f2)
+                # score = model_verif(f1 * f2)
+                score = model_verif((f1 - f2).pow(2))
                 _, preds = torch.max(score.data, 1)
 
                 loss_verif = criterion(score, labels) * opt.alpha
