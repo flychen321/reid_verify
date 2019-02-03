@@ -23,7 +23,7 @@ import os
 # from reid_sampler import StratifiedSampler
 from model import ft_net, ft_net_dense, PCB, verif_net
 from random_erasing import RandomErasing
-from tripletfolder import TripletFolder, SiameseDataset
+from tripletfolder import TripletFolder, SiameseDataset, SggDataset
 import yaml
 from shutil import copyfile
 from losses import ContrastiveLoss, SigmoidLoss
@@ -39,7 +39,7 @@ parser.add_argument('--name', default='ft_ResNet50', type=str, help='output mode
 parser.add_argument('--data_dir', default='data/market/pytorch', type=str, help='training dir path')
 parser.add_argument('--train_all', action='store_true', help='use all training data')
 parser.add_argument('--color_jitter', action='store_true', help='use color jitter in training')
-parser.add_argument('--batchsize', default=48, type=int, help='batchsize')
+parser.add_argument('--batchsize', default=32, type=int, help='batchsize')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--alpha', default=1.0, type=float, help='alpha')
 parser.add_argument('--erasing_p', default=0, type=float, help='Random Erasing probability, in [0,1]')
