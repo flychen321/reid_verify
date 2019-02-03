@@ -23,7 +23,7 @@ import os
 # from reid_sampler import StratifiedSampler
 from model import ft_net, ft_net_dense, PCB, verif_net
 from random_erasing import RandomErasing
-from tripletfolder import TripletFolder, SiameseDataset, SggDataset
+from datasets import TripletFolder, SiameseDataset, SggDataset
 import yaml
 from shutil import copyfile
 from losses import ContrastiveLoss, SigmoidLoss
@@ -159,7 +159,7 @@ y_err['train'] = []
 y_err['val'] = []
 
 
-def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
+def train_model_triplet(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
     best_model_wts = model.state_dict()
@@ -329,7 +329,6 @@ def train_model_new(model, model_verif, criterion, optimizer, scheduler, num_epo
                 # forward
                 _, f1 = model(inputs[0])
                 _, f2 = model(inputs[1])
-                # score = model_verif(f1 * f2)
                 score = model_verif((f1 - f2).pow(2))
                 _, preds = torch.max(score.data, 1)
 
@@ -491,7 +490,7 @@ if not os.path.isdir(dir_name):
     os.mkdir(dir_name)
     copyfile('./train.py', dir_name + '/train.py')
     copyfile('./model.py', dir_name + '/model.py')
-    copyfile('./tripletfolder.py', dir_name + '/tripletfolder.py')
+    copyfile('./datasets.py', dir_name + '/datasets.py')
 
 # save opts
 with open('%s/opts.yaml' % dir_name, 'w') as fp:
