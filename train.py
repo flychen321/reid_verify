@@ -39,7 +39,7 @@ parser.add_argument('--name', default='ft_ResNet50', type=str, help='output mode
 parser.add_argument('--data_dir', default='data/market/pytorch', type=str, help='training dir path')
 parser.add_argument('--train_all', action='store_true', help='use all training data')
 parser.add_argument('--color_jitter', action='store_true', help='use color jitter in training')
-parser.add_argument('--batchsize', default=32, type=int, help='batchsize')
+parser.add_argument('--batchsize', default=48, type=int, help='batchsize')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--alpha', default=1.0, type=float, help='alpha')
 parser.add_argument('--erasing_p', default=0, type=float, help='Random Erasing probability, in [0,1]')
@@ -117,9 +117,9 @@ if opt.train_all:
     train_all = '_all'
 
 image_datasets = {}
-image_datasets['train'] = TripletFolder(os.path.join(data_dir, 'train_all'),
+image_datasets['train'] = SiameseDataset(os.path.join(data_dir, 'train_all'),
                                         data_transforms['train'])
-image_datasets['val'] = TripletFolder(os.path.join(data_dir, 'val'),
+image_datasets['val'] = SiameseDataset(os.path.join(data_dir, 'val'),
                                       data_transforms['val'])
 
 batch = {}
@@ -284,7 +284,7 @@ def train_model_triplet(model, model_verif, criterion, optimizer, scheduler, num
     return model
 
 
-def train_model_new(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
+def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
     best_model_wts = model.state_dict()
@@ -303,37 +303,42 @@ def train_model_new(model, model_verif, criterion, optimizer, scheduler, num_epo
             else:
                 model.train(False)  # Set model to evaluate mode
 
-            running_loss = 0.0
+            running_id_loss = 0.0
             running_verif_loss = 0.0
-            running_corrects = 0.0
+            running_id_corrects = 0.0
             running_verif_corrects = 0.0
             # Iterate over data.
             for data in dataloaders[phase]:
                 # get the inputs
-                inputs, labels = data
+                inputs, vf_labels, id_labels = data
                 now_batch_size, c, h, w = inputs[0].shape
                 if now_batch_size < opt.batchsize:  # next epoch
                     continue
 
-                if not type(inputs) in (tuple, list):
+                if type(inputs) not in (tuple, list):
                     inputs = (inputs,)
+                if type(id_labels) not in (tuple, list):
+                    id_labels = (id_labels,)
                 if use_gpu:
                     inputs = tuple(d.cuda() for d in inputs)
-                    if labels is not None:
-                        labels = labels.cuda()
-
+                    id_labels = tuple(d.cuda() for d in id_labels)
+                    if vf_labels is not None:
+                        vf_labels = vf_labels.cuda()
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward
-                _, f1 = model(inputs[0])
-                _, f2 = model(inputs[1])
+                outputs1, f1 = model(inputs[0])
+                outputs2, f2 = model(inputs[1])
                 score = model_verif((f1 - f2).pow(2))
-                _, preds = torch.max(score.data, 1)
-
-                loss_verif = criterion(score, labels) * opt.alpha
-                loss = loss_verif
+                _, id_preds1 = torch.max(outputs1.data, 1)
+                _, id_preds2 = torch.max(outputs2.data, 1)
+                _, vf_preds = torch.max(score.data, 1)
+                loss_id1 = criterion(outputs1, id_labels[0])
+                loss_id2 = criterion(outputs2, id_labels[1])
+                loss_verif = criterion(score, vf_labels)
+                loss = loss_verif * opt.alpha + loss_id1 + loss_id2
 
                 # backward + optimize only if in training phase
                 if phase == 'train':
@@ -341,21 +346,23 @@ def train_model_new(model, model_verif, criterion, optimizer, scheduler, num_epo
                     optimizer.step()
                 # statistics
                 if int(version[0]) > 0 or int(version[2]) > 3:  # for the new version like 0.4.0 and 0.5.0
-                    running_loss += loss.item()  # * opt.batchsize
+                    running_id_loss += loss.item()  # * opt.batchsize
                     running_verif_loss += loss_verif.item()  # * opt.batchsize
                 else:  # for the old version like 0.3.0 and 0.3.1
-                    running_loss += loss.data[0]
+                    running_id_loss += loss.data[0]
                     running_verif_loss += loss_verif.data[0]
-                running_verif_corrects += float(torch.sum(preds == labels))
+                running_id_corrects += float(torch.sum(id_preds1 == id_labels[0].data))
+                running_id_corrects += float(torch.sum(id_preds2 == id_labels[1].data))
+                running_verif_corrects += float(torch.sum(vf_preds == vf_labels))
 
             datasize = dataset_sizes['train'] // opt.batchsize * opt.batchsize
-            epoch_loss = running_loss / datasize
+            epoch_id_loss = running_id_loss / datasize
             epoch_verif_loss = running_verif_loss / datasize
-            epoch_acc = running_corrects / datasize
+            epoch_id_acc = running_id_corrects / (datasize * 2)
             epoch_verif_acc = running_verif_corrects / datasize
 
-            print('{} Loss: {:.4f} Loss_verif: {:.4f}  Acc: {:.4f} Verif_Acc: {:.4f} '.format(
-                phase, epoch_loss, epoch_verif_loss, epoch_acc, epoch_verif_acc))
+            print('{} Loss_id: {:.4f} Loss_verif: {:.4f}  Acc_id: {:.4f} Verif_Acc: {:.4f} '.format(
+                phase, epoch_id_loss, epoch_verif_loss, epoch_id_acc, epoch_verif_acc))
             # if phase == 'val':
             #     if epoch_acc > best_acc or (np.fabs(epoch_acc - best_acc) < 1e-5 and epoch_loss < best_loss):
             #         best_acc = epoch_acc
@@ -365,8 +372,8 @@ def train_model_new(model, model_verif, criterion, optimizer, scheduler, num_epo
             #     if epoch >= 0:
             #         save_network(model, epoch)
 
-            y_loss[phase].append(epoch_loss)
-            y_err[phase].append(1.0 - epoch_acc)
+            y_loss[phase].append(epoch_id_loss)
+            y_err[phase].append(1.0 - epoch_id_acc)
             # deep copy the model
 
             if epoch % 10 == 9:

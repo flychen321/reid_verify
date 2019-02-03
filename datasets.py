@@ -82,23 +82,23 @@ class SiameseDataset(datasets.ImageFolder):
         return int(camera_id) - 1
 
     def __getitem__(self, index):
-        target = np.random.randint(0, 2)
+        siamese_target = np.random.randint(0, 2)
         img1, label1 = self.data[index], self.labels[index].item()
-        if target == 1:
+        if siamese_target == 1:
             siamese_index = index
             while siamese_index == index:
                 siamese_index = np.random.choice(self.label_to_indices[label1])
         else:
             siamese_label = np.random.choice(list(self.labels_set - set([label1])))
             siamese_index = np.random.choice(self.label_to_indices[siamese_label])
-        img2 = self.data[siamese_index]
+        img2, label2 = self.data[siamese_index], self.labels[siamese_index].item()
 
         img1 = default_loader(img1)
         img2 = default_loader(img2)
         if self.transform is not None:
             img1 = self.transform(img1)
             img2 = self.transform(img2)
-        return (img1, img2), target
+        return (img1, img2), siamese_target, (int(label1), int(label2))
 
     def __len__(self):
         return len(self.imgs)
