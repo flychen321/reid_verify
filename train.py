@@ -288,8 +288,10 @@ def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=
     since = time.time()
 
     best_model_wts = model.state_dict()
-    best_acc = 0.0
     last_margin = 0.0
+    best_acc = 0.0
+    best_loss = 10000.0
+    best_epoch = -1
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
@@ -373,14 +375,14 @@ def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=
 
             print('{} Loss_id: {:.4f} Loss_verif: {:.4f}  Acc_id: {:.4f} Verif_Acc: {:.4f} '.format(
                 phase, epoch_id_loss, epoch_verif_loss, epoch_id_acc, epoch_verif_acc))
-            # if phase == 'val':
-            #     if epoch_acc > best_acc or (np.fabs(epoch_acc - best_acc) < 1e-5 and epoch_loss < best_loss):
-            #         best_acc = epoch_acc
-            #         best_loss = epoch_loss
-            #         best_epoch = epoch
-            #         best_model_wts = model.state_dict()
-            #     if epoch >= 0:
-            #         save_network(model, epoch)
+
+            epoch_acc = (epoch_id_acc + epoch_verif_acc)/2.0
+            epoch_loss = (epoch_id_loss + epoch_verif_loss)/2.0
+            if epoch_acc > best_acc or (np.fabs(epoch_acc - best_acc) < 1e-5 and epoch_loss < best_loss):
+                best_acc = epoch_acc
+                best_loss = epoch_loss
+                best_epoch = epoch
+                save_network(model, 'best')
 
             y_loss[phase].append(epoch_id_loss)
             y_err[phase].append(1.0 - epoch_id_acc)
@@ -388,12 +390,12 @@ def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=
 
             if epoch % 10 == 9:
                 save_network(model, epoch)
+
             draw_curve(epoch)
             last_model_wts = model.state_dict()
 
-        print()
-
     time_elapsed = time.time() - since
+    print('best_epoch = %s     best_loss = %s     best_acc = %s' % (best_epoch, best_loss, best_acc))
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
     # print('Best val Acc: {:4f}'.format(best_acc))

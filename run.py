@@ -11,6 +11,6 @@ for i in np.arange(3):
     print('cmd = %s' % cmd)
     os.system(cmd)
 
-    os.system('python test.py  --use_dense --gpu_ids 0 --name ft_DesNet  --which_epoch 59 ' + ' >>  ' + log_name)
+    os.system('python test.py  --use_dense --gpu_ids 0 --name ft_DesNet ' + ' >>  ' + log_name)
     os.system('python evaluate_gpu.py' + ' >> ' + log_name)
     os.system('python evaluate_rerank.py' + ' >> ' + log_name)
