@@ -598,8 +598,8 @@ stage_1 = False
 stage_2 = True
 
 if stage_1:
-    train_model = train_model_triplet
-    # train_model = train_model_siamese
+    # train_model = train_model_triplet
+    train_model = train_model_siamese
     model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
                         num_epochs=60)
 
