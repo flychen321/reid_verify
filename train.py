@@ -342,15 +342,16 @@ def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=
                 loss_id = loss_id1 + loss_id2
                 loss_verif = criterion(score, vf_labels)
                 # loss = loss_verif * opt.alpha + loss_id
-                if opt.net_loss_model == 0:
-                    loss = loss_id + loss_verif
-                elif opt.net_loss_model == 1:
-                    loss = loss_verif
-                elif opt.net_loss_model == 2:
-                    loss = loss_id
-                else:
-                    print('opt.net_loss_model = %s    error !!!' % opt.net_loss_model)
-                    exit()
+                loss = loss_verif
+                # if opt.net_loss_model == 0:
+                #     loss = loss_id + loss_verif
+                # elif opt.net_loss_model == 1:
+                #     loss = loss_verif
+                # elif opt.net_loss_model == 2:
+                #     loss = loss_id
+                # else:
+                #     print('opt.net_loss_model = %s    error !!!' % opt.net_loss_model)
+                #     exit()
 
                 # backward + optimize only if in training phase
                 if phase == 'train':
@@ -469,7 +470,7 @@ if not opt.PCB:
         {'params': base_params, 'lr': 0.1 * opt.lr},
         {'params': model.model.fc.parameters(), 'lr': opt.lr},
         {'params': model.classifier.parameters(), 'lr': opt.lr},
-        {'params': model_verif.classifier.parameters(), 'lr': 10.0 * opt.lr}
+        {'params': model_verif.classifier.parameters(), 'lr': opt.lr}
     ], weight_decay=5e-4, momentum=0.9, nesterov=True)
 else:
     ignored_params = list(map(id, model.model.fc.parameters()))
@@ -496,7 +497,7 @@ else:
         # {'params': model.classifier7.parameters(), 'lr': 0.01}
     ], weight_decay=5e-4, momentum=0.9, nesterov=True)
 
-exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[30, 50], gamma=0.1)
+exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[40, 60], gamma=0.1)
 
 ######################################################################
 # Train and evaluate
@@ -516,4 +517,4 @@ with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
 model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
-                    num_epochs=50)
+                    num_epochs=60)
