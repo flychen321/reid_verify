@@ -61,7 +61,7 @@ class Fc_ClassBlock(nn.Module):
         return x, f
 
 class ReFineBlock(nn.Module):
-    def __init__(self, input_dim=1024, dropout=True, relu=True, num_bottleneck=1024, layer=2):
+    def __init__(self, input_dim=512, dropout=True, relu=True, num_bottleneck=512, layer=2):
         super(ReFineBlock, self).__init__()
         add_block = []
         for i in range(layer):
@@ -81,7 +81,7 @@ class ReFineBlock(nn.Module):
 
 
 class FcBlock(nn.Module):
-    def __init__(self, input_dim=1024, dropout=True, relu=True, num_bottleneck=512):
+    def __init__(self, input_dim=512, dropout=True, relu=True, num_bottleneck=512):
         super(FcBlock, self).__init__()
         add_block = []
         add_block += [nn.Linear(input_dim, num_bottleneck)]
@@ -285,6 +285,30 @@ class PCB_test(nn.Module):
 # print('net output size:')
 # print(f.shape)
 
+class SiameseNet(nn.Module):
+    def __init__(self, embedding_net):
+        super(SiameseNet, self).__init__()
+        self.embedding_net = embedding_net
+        self.bn = nn.BatchNorm1d(1024)
+        self.fc = FcBlock()
+        self.classifier = ClassBlock(input_dim=512, class_num=1)
+
+    def forward(self, x1, x2=None):
+        output1 = self.embedding_net(x1)[1]
+        if x2 is None:
+            return output1
+        output2 = self.embedding_net(x2)[1]
+        feature = (output1 - output2).pow(2)
+        # feature = self.bn(feature)
+        feature_fc = self.fc(feature)
+        result = self.classifier(feature_fc)
+        return feature, result
+
+        # return output1, output2
+
+    def get_embedding(self, x):
+        return self.embedding_net(x)
+
 
 class Sggnn_siamese(nn.Module):
     def __init__(self, siamesemodel):
@@ -303,7 +327,7 @@ class Sggnn_siamese(nn.Module):
         num_g_per_id = len(x_g[0])  # 3
         num_p_per_batch = len(x_p) * len(x_p[0])  # 8
         num_g_per_batch = len(x_g) * len(x_g[0])  # 24
-        len_feature = 1024
+        len_feature = 512
         d = torch.FloatTensor(batch_size, batch_size, num_p_per_id, num_g_per_id, len_feature).zero_()
         # this w for dynamic calculate the weight
         # w = torch.FloatTensor(batch_size, batch_size, num_g_per_id, num_g_per_id, 1).zero_()
@@ -399,7 +423,7 @@ class Sggnn_gcn(nn.Module):
         num_g_per_id = len(d[0][0][0])  # 3
         num_p_per_batch = len(d[0]) * len(d[0][0])  # 1
         num_g_per_batch = len(d[0]) * len(d[0][0][0])  # 3
-        len_feature = 1024
+        len_feature = 512
         t = torch.FloatTensor(d.shape).zero_()
         d_new = torch.FloatTensor(d.shape).zero_()
         # this w for dynamic calculate the weight

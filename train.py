@@ -22,6 +22,7 @@ import time
 import os
 # from reid_sampler import StratifiedSampler
 from model import ft_net, ft_net_dense, PCB, verif_net
+from model import Sggnn_siamese, Sggnn_gcn, SiameseNet
 from random_erasing import RandomErasing
 from datasets import TripletFolder, SiameseDataset, SggDataset
 import yaml
@@ -117,10 +118,18 @@ if opt.train_all:
     train_all = '_all'
 
 image_datasets = {}
-image_datasets['train'] = TripletFolder(os.path.join(data_dir, 'train_all'),
-                                        data_transforms['train'])
-image_datasets['val'] = TripletFolder(os.path.join(data_dir, 'val'),
-                                      data_transforms['val'])
+
+dataset = TripletFolder
+# dataset = SiameseDataset
+image_datasets['train'] = dataset(os.path.join(data_dir, 'train_all'),
+                                  data_transforms['train'])
+image_datasets['val'] = dataset(os.path.join(data_dir, 'val'),
+                                data_transforms['val'])
+
+dataloaders_gcn = {}
+dataloaders_gcn['train'] = torch.utils.data.DataLoader(
+    SggDataset(os.path.join(data_dir, 'train_all'), data_transforms['train']), batch_size=opt.batchsize, shuffle=True,
+    num_workers=8)
 
 batch = {}
 
@@ -267,8 +276,8 @@ def train_model_triplet(model, model_verif, criterion, optimizer, scheduler, num
             y_loss[phase].append(epoch_loss)
             y_err[phase].append(1.0 - epoch_acc)
             # deep copy the model
-            epoch_acc = (epoch_acc + epoch_verif_acc)/2.0
-            epoch_loss = (epoch_loss + epoch_verif_loss)/2.0
+            epoch_acc = (epoch_acc + epoch_verif_acc) / 2.0
+            epoch_loss = (epoch_loss + epoch_verif_loss) / 2.0
             if epoch_acc > best_acc or (np.fabs(epoch_acc - best_acc) < 1e-5 and epoch_loss < best_loss):
                 best_acc = epoch_acc
                 best_loss = epoch_loss
@@ -387,8 +396,8 @@ def train_model_siamese(model, model_verif, criterion, optimizer, scheduler, num
             print('{} Loss_id: {:.4f} Loss_verif: {:.4f}  Acc_id: {:.4f} Verif_Acc: {:.4f} '.format(
                 phase, epoch_id_loss, epoch_verif_loss, epoch_id_acc, epoch_verif_acc))
 
-            epoch_acc = (epoch_id_acc + epoch_verif_acc)/2.0
-            epoch_loss = (epoch_id_loss + epoch_verif_loss)/2.0
+            epoch_acc = (epoch_id_acc + epoch_verif_acc) / 2.0
+            epoch_loss = (epoch_id_loss + epoch_verif_loss) / 2.0
             if epoch_acc > best_acc or (np.fabs(epoch_acc - best_acc) < 1e-5 and epoch_loss < best_loss):
                 best_acc = epoch_acc
                 best_loss = epoch_loss
@@ -416,6 +425,56 @@ def train_model_siamese(model, model_verif, criterion, optimizer, scheduler, num
     save_network(model, 'last')
     return model
 
+
+def train_gcn(train_loader, model_siamese, loss_siamese_fn, model_gcn, loss_gcn_fn, optimizer, num_epochs=25):
+    global cnt
+    since = time.time()
+    model_gcn.train()
+    model_siamese.eval()
+    losses = []
+    total_loss = 0
+    for epoch in range(num_epochs):
+        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('-' * 10)
+
+        for batch_idx, (data, target) in enumerate(train_loader):
+            target = target if len(target) > 0 else None
+            if not type(data) in (tuple, list):
+                data = (data,)
+            if use_gpu:
+                data = tuple(d.cuda() for d in data)
+                if target is not None:
+                    target = target.cuda()
+
+            optimizer.zero_grad()
+
+            with torch.no_grad():
+                outputs = model_siamese(*data, target)
+
+            outputs, target = model_gcn(*outputs)  # for SGGNN
+
+            if type(outputs) not in (tuple, list):
+                outputs = (outputs,)
+
+            loss_inputs = outputs
+            if target is not None:
+                target = (target,)
+                loss_inputs += target
+
+            loss_outputs = loss_gcn_fn(*loss_inputs)
+            loss = loss_outputs[0] if type(loss_outputs) in (tuple, list) else loss_outputs
+            losses.append(loss.item())
+            total_loss += loss.item()
+            loss.backward()
+            optimizer.step()
+            print('batch_idx = %4d  loss = %f' % (batch_idx, loss))
+
+    time_elapsed = time.time() - since
+    print('time = %f' % (time_elapsed))
+    save_network(model_gcn, 'best')
+    return model_gcn
+
+
 ######################################################################
 # Draw Curve
 # ---------------------------
@@ -435,6 +494,15 @@ def draw_curve(current_epoch):
         ax0.legend()
         ax1.legend()
     fig.savefig(os.path.join('./model', name, 'train.jpg'))
+
+
+######################################################################
+# Load model
+# ---------------------------
+def load_network(network):
+    save_path = os.path.join('./model', name, 'net_%s.pth' % 'last')
+    network.load_state_dict(torch.load(save_path))
+    return network
 
 
 ######################################################################
@@ -526,7 +594,35 @@ if not os.path.isdir(dir_name):
 with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
-train_model = train_model_triplet
-# train_model = train_model_siamese
-model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
-                    num_epochs=60)
+stage_1 = False
+stage_2 = True
+
+if stage_1:
+    train_model = train_model_triplet
+    # train_model = train_model_siamese
+    model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
+                        num_epochs=60)
+
+if stage_2:
+    margin = 1.
+    embedding_net = ft_net_dense(len(class_names))
+    model_siamese = Sggnn_siamese(SiameseNet(embedding_net))
+    model_siamese.eval()
+    model_gcn = Sggnn_gcn()
+    model_gcn.train()
+
+    if use_gpu:
+        model_siamese.cuda()
+        model_gcn.cuda()
+    # loss_fn = ContrastiveLoss(margin)
+    # model_siamese = load_network(model_siamese)
+    loss_siamese_fn = ContrastiveLoss(margin)
+    loss_gcn_fn = SigmoidLoss()
+    # loss_fn = nn.CrossEntropyLoss()
+    lr = 1e-3
+    optimizer = optim.Adam(model_gcn.parameters(), lr=lr)
+    scheduler = lr_scheduler.StepLR(optimizer, 8, gamma=0.1, last_epoch=-1)
+    n_epochs = 20
+    log_interval = 100
+    model = train_gcn(dataloaders_gcn['train'], model_siamese, loss_siamese_fn, model_gcn, loss_gcn_fn, optimizer,
+                      num_epochs=n_epochs)
