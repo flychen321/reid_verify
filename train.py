@@ -594,7 +594,7 @@ if not os.path.isdir(dir_name):
 with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
-stage_1 = False
+stage_1 = True
 stage_2 = True
 
 if stage_1:

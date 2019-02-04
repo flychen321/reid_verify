@@ -33,7 +33,7 @@ def weights_init_classifier(m):
 # Defines the new fc layer and classification layer
 # |--Linear--|--bn--|--relu--|--Linear--|
 class Fc_ClassBlock(nn.Module):
-    def __init__(self, input_dim, class_num, dropout=0.5, relu=True, num_bottleneck=512):
+    def __init__(self, input_dim, class_num, dropout=0.5, relu=False, num_bottleneck=512):
         super(Fc_ClassBlock, self).__init__()
         add_block = []
         add_block += [nn.Linear(input_dim, num_bottleneck)]
@@ -45,7 +45,7 @@ class Fc_ClassBlock(nn.Module):
 
         classifier = []
         if dropout:
-            classifier += [nn.Dropout(p=0.5)]
+            classifier += [nn.Dropout(p=dropout)]
         classifier += [nn.Linear(num_bottleneck, class_num)]
         classifier = nn.Sequential(*classifier)
         classifier.apply(weights_init_classifier)
@@ -381,9 +381,9 @@ class Sggnn_gcn(nn.Module):
     def __init__(self):
         super(Sggnn_gcn, self).__init__()
         self.rf = ReFineBlock(layer=2)
-        self.fc = FcBlock()
-        self.classifier = ClassBlock(input_dim=512, class_num=2)
-        # self.classifier = Fc_ClassBlock(512, 2, dropout=0.75, relu=False)
+        # self.fc = FcBlock()
+        # self.classifier = ClassBlock(input_dim=512, class_num=2)
+        self.classifier = Fc_ClassBlock(input_dim=512, class_num=2, dropout=0.75, relu=False)
 
     def forward(self, d, w, label):
         use_gpu = torch.cuda.is_available()
@@ -427,8 +427,9 @@ class Sggnn_gcn(nn.Module):
 
         # maybe need to fix
         for i in range(num_p_per_batch):
-            feature = self.fc(d_new[i, :])
-            feature = self.classifier(feature)
+            # feature = self.fc(d_new[i, :])
+            # feature = self.classifier(feature)
+            feature = self.classifier.classifier(d_new[i, :])
             result[i, :] = feature.squeeze()
 
         label = label.view(label.size(0) * label.size(1))
