@@ -117,9 +117,9 @@ if opt.train_all:
     train_all = '_all'
 
 image_datasets = {}
-image_datasets['train'] = SiameseDataset(os.path.join(data_dir, 'train_all'),
+image_datasets['train'] = TripletFolder(os.path.join(data_dir, 'train_all'),
                                         data_transforms['train'])
-image_datasets['val'] = SiameseDataset(os.path.join(data_dir, 'val'),
+image_datasets['val'] = TripletFolder(os.path.join(data_dir, 'val'),
                                       data_transforms['val'])
 
 batch = {}
@@ -164,6 +164,8 @@ def train_model_triplet(model, model_verif, criterion, optimizer, scheduler, num
 
     best_model_wts = model.state_dict()
     best_acc = 0.0
+    best_loss = 10000.0
+    best_epoch = -1
     last_margin = 0.0
 
     for epoch in range(num_epochs):
@@ -265,6 +267,13 @@ def train_model_triplet(model, model_verif, criterion, optimizer, scheduler, num
             y_loss[phase].append(epoch_loss)
             y_err[phase].append(1.0 - epoch_acc)
             # deep copy the model
+            epoch_acc = (epoch_acc + epoch_verif_acc)/2.0
+            epoch_loss = (epoch_loss + epoch_verif_loss)/2.0
+            if epoch_acc > best_acc or (np.fabs(epoch_acc - best_acc) < 1e-5 and epoch_loss < best_loss):
+                best_acc = epoch_acc
+                best_loss = epoch_loss
+                best_epoch = epoch
+                save_network(model, 'best')
 
             if epoch % 10 == 9:
                 save_network(model, epoch)
@@ -274,6 +283,7 @@ def train_model_triplet(model, model_verif, criterion, optimizer, scheduler, num
         print()
 
     time_elapsed = time.time() - since
+    print('best_epoch = %s     best_loss = %s     best_acc = %s' % (best_epoch, best_loss, best_acc))
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
     # print('Best val Acc: {:4f}'.format(best_acc))
@@ -284,7 +294,7 @@ def train_model_triplet(model, model_verif, criterion, optimizer, scheduler, num
     return model
 
 
-def train_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
+def train_model_siamese(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
     best_model_wts = model.state_dict()
@@ -516,5 +526,7 @@ if not os.path.isdir(dir_name):
 with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
+train_model = train_model_triplet
+# train_model = train_model_siamese
 model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
                     num_epochs=60)
