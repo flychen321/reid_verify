@@ -119,8 +119,8 @@ if opt.train_all:
 
 image_datasets = {}
 
-dataset = TripletFolder
-# dataset = SiameseDataset
+# dataset = TripletFolder
+dataset = SiameseDataset
 image_datasets['train'] = dataset(os.path.join(data_dir, 'train_all'),
                                   data_transforms['train'])
 image_datasets['val'] = dataset(os.path.join(data_dir, 'val'),
@@ -614,11 +614,10 @@ if stage_2:
     if use_gpu:
         model_siamese.cuda()
         model_gcn.cuda()
-    # loss_fn = ContrastiveLoss(margin)
     # model_siamese = load_network(model_siamese)
-    loss_siamese_fn = ContrastiveLoss(margin)
-    loss_gcn_fn = SigmoidLoss()
-    # loss_fn = nn.CrossEntropyLoss()
+    # loss_siamese_fn = ContrastiveLoss(margin)
+    loss_siamese_fn = nn.CrossEntropyLoss()
+    loss_gcn_fn = nn.CrossEntropyLoss()
     lr = 1e-3
     optimizer = optim.Adam(model_gcn.parameters(), lr=lr)
     scheduler = lr_scheduler.StepLR(optimizer, 8, gamma=0.1, last_epoch=-1)

@@ -8,6 +8,7 @@ import numpy as np
 import math
 import scipy.sparse as sp
 
+
 ######################################################################
 def weights_init_kaiming(m):
     classname = m.__class__.__name__
@@ -59,6 +60,7 @@ class Fc_ClassBlock(nn.Module):
         f = f.div(f_norm)
         x = self.classifier(x)
         return x, f
+
 
 class ReFineBlock(nn.Module):
     def __init__(self, input_dim=512, dropout=True, relu=True, num_bottleneck=512, layer=2):
@@ -276,6 +278,7 @@ class PCB_test(nn.Module):
         y = x.view(x.size(0), x.size(1), x.size(2))
         return y
 
+
 # debug model structure
 # net = ft_net(751)
 # net = ft_net(751)
@@ -289,9 +292,9 @@ class SiameseNet(nn.Module):
     def __init__(self, embedding_net):
         super(SiameseNet, self).__init__()
         self.embedding_net = embedding_net
-        self.bn = nn.BatchNorm1d(1024)
         self.fc = FcBlock()
-        self.classifier = ClassBlock(input_dim=512, class_num=1)
+        self.classifier = ClassBlock(input_dim=512, class_num=2)
+        # self.classifier = Fc_ClassBlock(512, 2, dropout=0.75, relu=False)
 
     def forward(self, x1, x2=None):
         output1 = self.embedding_net(x1)[1]
@@ -299,7 +302,10 @@ class SiameseNet(nn.Module):
             return output1
         output2 = self.embedding_net(x2)[1]
         feature = (output1 - output2).pow(2)
-        # feature = self.bn(feature)
+
+        # f_norm = feature.norm(p=2, dim=1, keepdim=True) + 1e-8
+        # feature = feature.div(f_norm)
+
         feature_fc = self.fc(feature)
         result = self.classifier(feature_fc)
         return feature, result
@@ -314,7 +320,6 @@ class Sggnn_siamese(nn.Module):
     def __init__(self, siamesemodel):
         super(Sggnn_siamese, self).__init__()
         self.basemodel = siamesemodel
-
 
     def forward(self, x, y):
         use_gpu = torch.cuda.is_available()
@@ -333,7 +338,7 @@ class Sggnn_siamese(nn.Module):
         # w = torch.FloatTensor(batch_size, batch_size, num_g_per_id, num_g_per_id, 1).zero_()
         # this w for calculate the weight by label
         w = torch.FloatTensor(batch_size, batch_size, num_g_per_id, num_g_per_id).zero_()
-        label = torch.FloatTensor(batch_size, batch_size, num_p_per_id, num_g_per_id).zero_()
+        label = torch.LongTensor(batch_size, batch_size, num_p_per_id, num_g_per_id).zero_()
 
         if use_gpu:
             d = d.cuda()
@@ -371,50 +376,14 @@ class Sggnn_siamese(nn.Module):
         # return result, label
         return d, w, label
 
-    def normalize(self, mx):
-        """Row-normalize sparse matrix"""
-        rowsum = np.array(mx.sum(1))
-        r_inv = np.power(rowsum, -1).flatten()
-        r_inv[np.isinf(r_inv)] = 0.
-        r_mat_inv = sp.diags(r_inv)
-        mx = r_mat_inv.dot(mx)
-        return mx
-
-    def preprocess_features(self, features):
-        """Row-normalize feature matrix and convert to tuple representation"""
-        rowsum = np.array(features.sum(1))
-        r_inv = np.power(rowsum, -1).flatten()
-        r_inv[np.isinf(r_inv)] = 0.
-        r_mat_inv = sp.diags(r_inv)
-        features = r_mat_inv.dot(features)
-        return features
-
-    def preprocess_adj_np(self, adj):
-        """Symmetrically normalize adjacency matrix."""
-        adj = adj + sp.eye(adj.shape[0])
-        adj = sp.coo_matrix(adj)
-        rowsum = np.array(adj.sum(1))
-        d_inv_sqrt = np.power(rowsum, -0.5).flatten()
-        d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-        d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-        return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocoo()
-
-    def preprocess_adj(self, adj):
-        """Symmetrically normalize adjacency matrix."""
-        adj = adj + torch.eye(adj.shape[0]).cuda()
-        rowsum = torch.Tensor(adj.sum(1).cpu()).cuda()
-        d_inv_sqrt = torch.pow(rowsum, -0.5).flatten()
-        d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.
-        d_mat_inv_sqrt = torch.diag(d_inv_sqrt)
-        return adj.mm(d_mat_inv_sqrt).transpose(0, 1).mm(d_mat_inv_sqrt)
-
 
 class Sggnn_gcn(nn.Module):
     def __init__(self):
         super(Sggnn_gcn, self).__init__()
         self.rf = ReFineBlock(layer=2)
         self.fc = FcBlock()
-        self.classifier = ClassBlock(input_dim=512, class_num=1)
+        self.classifier = ClassBlock(input_dim=512, class_num=2)
+        # self.classifier = Fc_ClassBlock(512, 2, dropout=0.75, relu=False)
 
     def forward(self, d, w, label):
         use_gpu = torch.cuda.is_available()
@@ -423,13 +392,13 @@ class Sggnn_gcn(nn.Module):
         num_g_per_id = len(d[0][0][0])  # 3
         num_p_per_batch = len(d[0]) * len(d[0][0])  # 1
         num_g_per_batch = len(d[0]) * len(d[0][0][0])  # 3
-        len_feature = 512
+        len_feature = d.shape[-1]
         t = torch.FloatTensor(d.shape).zero_()
         d_new = torch.FloatTensor(d.shape).zero_()
         # this w for dynamic calculate the weight
         # w = torch.FloatTensor(batch_size, batch_size, num_g_per_batch, num_g_per_batch, 1).zero_()
         # this w for calculate the weight by label
-        result = torch.FloatTensor(d.shape[: -1]).zero_()
+        result = torch.FloatTensor(d.shape[: -1] + (2,)).zero_()
         if use_gpu:
             d = d.cuda()
             d_new = d_new.cuda()
@@ -449,7 +418,7 @@ class Sggnn_gcn(nn.Module):
         t = t.reshape(d.shape)
         w = w.reshape(batch_size * num_g_per_id, -1)
         label = label.reshape(batch_size, -1)
-        result = result.reshape(batch_size, -1)
+        result = result.reshape(batch_size, -1, 2)
 
         # w need to be normalized
         w = self.preprocess_adj(w)
@@ -462,7 +431,8 @@ class Sggnn_gcn(nn.Module):
             feature = self.classifier(feature)
             result[i, :] = feature.squeeze()
 
-        # label = torch.randint(0, 2, result.shape).cuda()
+        label = label.view(label.size(0) * label.size(1))
+        result = result.view(label.size(0), -1)
 
         print('run Sggnn_gcn foward success  !!!')
         return result, label
