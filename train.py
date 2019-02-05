@@ -524,6 +524,7 @@ def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
                 best_loss = epoch_loss
                 best_epoch = epoch
                 save_network(model, 'best')
+                save_whole_network(model, 'whole_best')
 
             y_loss[phase].append(epoch_id_loss)
             y_err[phase].append(1.0 - epoch_id_acc)
@@ -544,6 +545,7 @@ def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
     # load best model weights
     model.load_state_dict(last_model_wts)
     save_network(model, 'last')
+    save_whole_network(model, 'whole_last')
     return model
 
 
@@ -632,16 +634,28 @@ def load_network_easy(network):
 
 def load_network(network, model_name=None):
     if model_name == None:
-        save_path = os.path.join('./model', name, 'net_%s.pth' % 'best')
+        save_path = os.path.join('./model', name, 'net_%s.pth' % 'whole_best')
     else:
         save_path = model_name
-    print('load pretrained model: %s' % save_path)
+    print('load whole pretrained model: %s' % save_path)
     net_original = torch.load(save_path)
     pretrained_dict = net_original.state_dict()
     model_dict = network.state_dict()
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
     model_dict.update(pretrained_dict)
     network.load_state_dict(model_dict)
+
+    # old = []
+    # new = []
+    # for k, v in pretrained_dict.items():
+    #     old.append(k)
+    # for k in model_dict:
+    #     new.append(k)
+    # print('len(old) = %d   len(new) = %d' % (len(old), len(new)))
+    # for i in range(min(len(old), len(new))):
+    #     print('i = %d  old = %s' % (i, old[i]))
+    #     print('i = %d  new = %s' % (i, new[i]))
+    # exit()
     return network
 
 
@@ -741,7 +755,7 @@ with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
 stage_0 = False
-stage_1 = False
+stage_1 = True
 stage_2 = True
 
 # if stage_0:
@@ -780,8 +794,17 @@ if stage_1:
 if stage_2:
     margin = 1.
     embedding_net = ft_net_dense(len(class_names))
-    model_siamese = Sggnn_siamese(SiameseNet(embedding_net))
+    model_mid = SiameseNet(embedding_net)
+    model_mid = load_network(model_mid)
+    model_siamese = Sggnn_siamese(model_mid)
     model_gcn = Sggnn_gcn()
+
+    # cnt = 0
+    # for k, v in model_siamese.state_dict():
+    #     print(k, v)
+    #     cnt += 1
+    # print(cnt)
+    # exit()
 
     if use_gpu:
         model_siamese.cuda()
@@ -795,7 +818,7 @@ if stage_2:
     scheduler_siamese = lr_scheduler.StepLR(optimizer_siamese, 8, gamma=0.1, last_epoch=-1)
     optimizer_gcn = optim.Adam(model_gcn.parameters(), lr=lr)
     scheduler_gcn = lr_scheduler.StepLR(optimizer_gcn, 8, gamma=0.1, last_epoch=-1)
-    n_epochs = 20
+    n_epochs = 2
     log_interval = 100
     model = train_gcn(dataloaders_gcn['train'], model_siamese, loss_siamese_fn, optimizer_siamese, scheduler_siamese,
                       model_gcn, loss_gcn_fn, optimizer_gcn, scheduler_gcn, num_epochs=n_epochs)
