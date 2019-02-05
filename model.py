@@ -292,9 +292,7 @@ class SiameseNet(nn.Module):
     def __init__(self, embedding_net):
         super(SiameseNet, self).__init__()
         self.embedding_net = embedding_net
-        self.fc = FcBlock()
-        self.classifier = ClassBlock(input_dim=512, class_num=2)
-        # self.classifier = Fc_ClassBlock(512, 2, dropout=0.75, relu=False)
+        self.classifier = Fc_ClassBlock(512, 2, dropout=0.75, relu=False)
 
     def forward(self, x1, x2=None):
         output1 = self.embedding_net(x1)[1]
@@ -306,11 +304,9 @@ class SiameseNet(nn.Module):
         # f_norm = feature.norm(p=2, dim=1, keepdim=True) + 1e-8
         # feature = feature.div(f_norm)
 
-        feature_fc = self.fc(feature)
-        result = self.classifier(feature_fc)
+        result = self.classifier.classifier(feature)
         return feature, result
 
-        # return output1, output2
 
     def get_embedding(self, x):
         return self.embedding_net(x)
