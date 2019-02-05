@@ -303,7 +303,7 @@ def train_model_triplet(model, model_verif, criterion, optimizer, scheduler, num
     return model
 
 
-def train_model_siamese(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
+def train_model_siamese_with_two_model(model, model_verif, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
     best_model_wts = model.state_dict()
@@ -353,6 +353,130 @@ def train_model_siamese(model, model_verif, criterion, optimizer, scheduler, num
                 outputs1, f1 = model(inputs[0])
                 outputs2, f2 = model(inputs[1])
                 score = model_verif((f1 - f2).pow(2))
+                _, id_preds1 = torch.max(outputs1.data, 1)
+                _, id_preds2 = torch.max(outputs2.data, 1)
+                _, vf_preds = torch.max(score.data, 1)
+                loss_id1 = criterion(outputs1, id_labels[0])
+                loss_id2 = criterion(outputs2, id_labels[1])
+                loss_id = loss_id1 + loss_id2
+                loss_verif = criterion(score, vf_labels)
+                # loss = loss_verif * opt.alpha + loss_id
+                loss = loss_verif
+                # if opt.net_loss_model == 0:
+                #     loss = loss_id + loss_verif
+                # elif opt.net_loss_model == 1:
+                #     loss = loss_verif
+                # elif opt.net_loss_model == 2:
+                #     loss = loss_id
+                # else:
+                #     print('opt.net_loss_model = %s    error !!!' % opt.net_loss_model)
+                #     exit()
+
+                # backward + optimize only if in training phase
+                if phase == 'train':
+                    loss.backward()
+                    optimizer.step()
+                # statistics
+                if int(version[0]) > 0 or int(version[2]) > 3:  # for the new version like 0.4.0 and 0.5.0
+                    running_id_loss += loss.item()  # * opt.batchsize
+                    running_verif_loss += loss_verif.item()  # * opt.batchsize
+                else:  # for the old version like 0.3.0 and 0.3.1
+                    running_id_loss += loss.data[0]
+                    running_verif_loss += loss_verif.data[0]
+                running_id_corrects += float(torch.sum(id_preds1 == id_labels[0].data))
+                running_id_corrects += float(torch.sum(id_preds2 == id_labels[1].data))
+                running_verif_corrects += float(torch.sum(vf_preds == vf_labels))
+
+            datasize = dataset_sizes['train'] // opt.batchsize * opt.batchsize
+            epoch_id_loss = running_id_loss / datasize
+            epoch_verif_loss = running_verif_loss / datasize
+            epoch_id_acc = running_id_corrects / (datasize * 2)
+            epoch_verif_acc = running_verif_corrects / datasize
+
+            print('{} Loss_id: {:.4f} Loss_verif: {:.4f}  Acc_id: {:.4f} Verif_Acc: {:.4f} '.format(
+                phase, epoch_id_loss, epoch_verif_loss, epoch_id_acc, epoch_verif_acc))
+
+            epoch_acc = (epoch_id_acc + epoch_verif_acc) / 2.0
+            epoch_loss = (epoch_id_loss + epoch_verif_loss) / 2.0
+            if epoch_acc > best_acc or (np.fabs(epoch_acc - best_acc) < 1e-5 and epoch_loss < best_loss):
+                best_acc = epoch_acc
+                best_loss = epoch_loss
+                best_epoch = epoch
+                save_network(model, 'best')
+
+            y_loss[phase].append(epoch_id_loss)
+            y_err[phase].append(1.0 - epoch_id_acc)
+            # deep copy the model
+
+            if epoch % 10 == 9:
+                save_network(model, epoch)
+
+            draw_curve(epoch)
+            last_model_wts = model.state_dict()
+
+    time_elapsed = time.time() - since
+    print('best_epoch = %s     best_loss = %s     best_acc = %s' % (best_epoch, best_loss, best_acc))
+    print('Training complete in {:.0f}m {:.0f}s'.format(
+        time_elapsed // 60, time_elapsed % 60))
+    # print('Best val Acc: {:4f}'.format(best_acc))
+
+    # load best model weights
+    model.load_state_dict(last_model_wts)
+    save_network(model, 'last')
+    return model
+
+
+def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
+    since = time.time()
+
+    best_model_wts = model.state_dict()
+    last_margin = 0.0
+    best_acc = 0.0
+    best_loss = 10000.0
+    best_epoch = -1
+
+    for epoch in range(num_epochs):
+        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('-' * 10)
+
+        # Each epoch has a training and validation phase
+        for phase in ['train']:
+            if phase == 'train':
+                scheduler.step()
+                model.train(True)  # Set model to training mode
+            else:
+                model.train(False)  # Set model to evaluate mode
+
+            running_id_loss = 0.0
+            running_verif_loss = 0.0
+            running_id_corrects = 0.0
+            running_verif_corrects = 0.0
+            # Iterate over data.
+            for data in dataloaders[phase]:
+                # get the inputs
+                inputs, vf_labels, id_labels = data
+                now_batch_size, c, h, w = inputs[0].shape
+                if now_batch_size < opt.batchsize:  # next epoch
+                    continue
+
+                if type(inputs) not in (tuple, list):
+                    inputs = (inputs,)
+                if type(id_labels) not in (tuple, list):
+                    id_labels = (id_labels,)
+                if use_gpu:
+                    inputs = tuple(d.cuda() for d in inputs)
+                    id_labels = tuple(d.cuda() for d in id_labels)
+                    if vf_labels is not None:
+                        vf_labels = vf_labels.cuda()
+
+                # zero the parameter gradients
+                optimizer.zero_grad()
+
+                # forward
+                outputs1, f1, outputs2, f2, feature, score = model(inputs[0], inputs[1])
+                # outputs1, f1 = model(inputs[0])
+                # outputs2, f2 = model(inputs[1])
+                # score = model_verif((f1 - f2).pow(2))
                 _, id_preds1 = torch.max(outputs1.data, 1)
                 _, id_preds2 = torch.max(outputs2.data, 1)
                 _, vf_preds = torch.max(score.data, 1)
@@ -532,8 +656,8 @@ if opt.PCB:
     model = PCB(len(class_names))
 
 model_verif = verif_net()
-print(model)
-print(model_verif)
+# print(model)
+# print(model_verif)
 
 if use_gpu:
     model = model.cuda()
@@ -594,14 +718,31 @@ if not os.path.isdir(dir_name):
 with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
+stage_0 = False
 stage_1 = True
 stage_2 = False
 
+# if stage_0:
+#     # train_model = train_model_triplet
+#     train_model = train_model_siamese_with_two_model
+#     model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
+#                         num_epochs=60)
+
 if stage_1:
-    # train_model = train_model_triplet
-    train_model = train_model_siamese
-    model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
-                        num_epochs=60)
+    embedding_net = ft_net_dense(len(class_names))
+    model_siamese = SiameseNet(embedding_net)
+    if use_gpu:
+        model_siamese.cuda()
+    print('model_siamese structure')
+    print(model_siamese)
+    optimizer_ft = optim.SGD([
+        {'params': model_siamese.parameters(), 'lr': opt.lr}
+    ], weight_decay=5e-4, momentum=0.9, nesterov=True)
+    exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[40, 60], gamma=0.1)
+    model = train_model_siamese(model_siamese, criterion, optimizer_ft, exp_lr_scheduler,
+                            num_epochs=60)
+
+
 
 if stage_2:
     margin = 1.

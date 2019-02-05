@@ -158,7 +158,7 @@ class verif_net(nn.Module):
 # Define the DenseNet121-based Model
 class ft_net_dense(nn.Module):
 
-    def __init__(self, class_num):
+    def __init__(self, class_num=751):
         super().__init__()
         model_ft = models.densenet121(pretrained=True)
         model_ft.features.avgpool = nn.AdaptiveAvgPool2d((1, 1))
@@ -295,17 +295,17 @@ class SiameseNet(nn.Module):
         self.classifier = Fc_ClassBlock(512, 2, dropout=0.75, relu=False)
 
     def forward(self, x1, x2=None):
-        output1 = self.embedding_net(x1)[1]
+        output1, feature1 = self.embedding_net(x1)
         if x2 is None:
-            return output1
-        output2 = self.embedding_net(x2)[1]
-        feature = (output1 - output2).pow(2)
+            return feature1
+        output2, feature2 = self.embedding_net(x2)
+        feature = (feature1 - feature2).pow(2)
 
         # f_norm = feature.norm(p=2, dim=1, keepdim=True) + 1e-8
         # feature = feature.div(f_norm)
 
         result = self.classifier.classifier(feature)
-        return feature, result
+        return output1, feature1, output2, feature2, feature, result
 
 
     def get_embedding(self, x):
