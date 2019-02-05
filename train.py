@@ -474,9 +474,6 @@ def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # forward
                 outputs1, f1, outputs2, f2, feature, score = model(inputs[0], inputs[1])
-                # outputs1, f1 = model(inputs[0])
-                # outputs2, f2 = model(inputs[1])
-                # score = model_verif((f1 - f2).pow(2))
                 _, id_preds1 = torch.max(outputs1.data, 1)
                 _, id_preds2 = torch.max(outputs2.data, 1)
                 _, vf_preds = torch.max(score.data, 1)
@@ -550,14 +547,17 @@ def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
     return model
 
 
-def train_gcn(train_loader, model_siamese, loss_siamese_fn, model_gcn, loss_gcn_fn, optimizer, num_epochs=25):
+def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, scheduler_siamese,
+                      model_gcn, loss_gcn_fn, optimizer_gcn, scheduler_gcn, num_epochs=25):
     global cnt
     since = time.time()
-    model_gcn.train()
-    model_siamese.eval()
+    model_gcn.train(True)
+    model_siamese.train(False)
     losses = []
     total_loss = 0
     for epoch in range(num_epochs):
+        scheduler_siamese.step()
+        scheduler_gcn.step()
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
 
@@ -570,7 +570,7 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, model_gcn, loss_gcn_
                 if target is not None:
                     target = target.cuda()
 
-            optimizer.zero_grad()
+            optimizer_gcn.zero_grad()
 
             with torch.no_grad():
                 outputs = model_siamese(*data, target)
@@ -590,7 +590,7 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, model_gcn, loss_gcn_
             losses.append(loss.item())
             total_loss += loss.item()
             loss.backward()
-            optimizer.step()
+            optimizer_gcn.step()
             print('batch_idx = %4d  loss = %f' % (batch_idx, loss))
 
     time_elapsed = time.time() - since
@@ -623,9 +623,25 @@ def draw_curve(current_epoch):
 ######################################################################
 # Load model
 # ---------------------------
-def load_network(network):
+def load_network_easy(network):
     save_path = os.path.join('./model', name, 'net_%s.pth' % 'last')
+    print('load pretrained model: %s' % save_path)
     network.load_state_dict(torch.load(save_path))
+    return network
+
+
+def load_network(network, model_name=None):
+    if model_name == None:
+        save_path = os.path.join('./model', name, 'net_%s.pth' % 'best')
+    else:
+        save_path = model_name
+    print('load pretrained model: %s' % save_path)
+    net_original = torch.load(save_path)
+    pretrained_dict = net_original.state_dict()
+    model_dict = network.state_dict()
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+    model_dict.update(pretrained_dict)
+    network.load_state_dict(model_dict)
     return network
 
 
@@ -635,9 +651,15 @@ def load_network(network):
 def save_network(network, epoch_label):
     save_filename = 'net_%s.pth' % epoch_label
     save_path = os.path.join('./model', name, save_filename)
-    torch.save(network.cpu().state_dict(), save_path)
-    if torch.cuda.is_available:
-        network.cuda(gpu_ids[0])
+    torch.save(network.state_dict(), save_path)
+    # if torch.cuda.is_available:
+    #     network.cuda(gpu_ids[0])
+
+
+def save_whole_network(network, epoch_label):
+    save_filename = 'net_%s.pth' % epoch_label
+    save_path = os.path.join('./model', name, save_filename)
+    torch.save(network, save_path)
 
 
 ######################################################################
@@ -719,8 +741,8 @@ with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
 stage_0 = False
-stage_1 = True
-stage_2 = False
+stage_1 = False
+stage_2 = True
 
 # if stage_0:
 #     # train_model = train_model_triplet
@@ -735,22 +757,31 @@ if stage_1:
         model_siamese.cuda()
     print('model_siamese structure')
     print(model_siamese)
-    optimizer_ft = optim.SGD([
-        {'params': model_siamese.parameters(), 'lr': opt.lr}
-    ], weight_decay=5e-4, momentum=0.9, nesterov=True)
+
+    stage_1_id = list(map(id, model_siamese.parameters()))
+    stage_1_base_id = list(map(id, model_siamese.embedding_net.parameters()))
+    stage_1_base_params = filter(lambda p: id(p) in stage_1_base_id, model_siamese.parameters())
+    stage_1_classifier_params = filter(lambda p: id(p) in stage_1_id and id(p) not in stage_1_base_id,
+                                       model_siamese.parameters())
+
+    optimizer_ft = optim.Adam([
+        {'params': stage_1_base_params, 'lr': 0.1 * opt.lr},
+        {'params': stage_1_classifier_params, 'lr': 1 * opt.lr},
+    ])
+
+    # optimizer_ft = optim.SGD([
+    #     {'params': model_siamese.parameters(), 'lr': opt.lr}
+    # ], weight_decay=5e-4, momentum=0.9, nesterov=True)
+
     exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[40, 60], gamma=0.1)
     model = train_model_siamese(model_siamese, criterion, optimizer_ft, exp_lr_scheduler,
-                            num_epochs=60)
-
-
+                                num_epochs=60)
 
 if stage_2:
     margin = 1.
     embedding_net = ft_net_dense(len(class_names))
     model_siamese = Sggnn_siamese(SiameseNet(embedding_net))
-    model_siamese.eval()
     model_gcn = Sggnn_gcn()
-    model_gcn.train()
 
     if use_gpu:
         model_siamese.cuda()
@@ -760,9 +791,11 @@ if stage_2:
     loss_siamese_fn = nn.CrossEntropyLoss()
     loss_gcn_fn = nn.CrossEntropyLoss()
     lr = 1e-3
-    optimizer = optim.Adam(model_gcn.parameters(), lr=lr)
-    scheduler = lr_scheduler.StepLR(optimizer, 8, gamma=0.1, last_epoch=-1)
+    optimizer_siamese = optim.Adam(model_siamese.parameters(), lr=lr)
+    scheduler_siamese = lr_scheduler.StepLR(optimizer_siamese, 8, gamma=0.1, last_epoch=-1)
+    optimizer_gcn = optim.Adam(model_gcn.parameters(), lr=lr)
+    scheduler_gcn = lr_scheduler.StepLR(optimizer_gcn, 8, gamma=0.1, last_epoch=-1)
     n_epochs = 20
     log_interval = 100
-    model = train_gcn(dataloaders_gcn['train'], model_siamese, loss_siamese_fn, model_gcn, loss_gcn_fn, optimizer,
-                      num_epochs=n_epochs)
+    model = train_gcn(dataloaders_gcn['train'], model_siamese, loss_siamese_fn, optimizer_siamese, scheduler_siamese,
+                      model_gcn, loss_gcn_fn, optimizer_gcn, scheduler_gcn, num_epochs=n_epochs)

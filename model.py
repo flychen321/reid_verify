@@ -356,13 +356,13 @@ class Sggnn_siamese(nn.Module):
 
             for i in range(num_p_per_id):
                 for j in range(num_g_per_id):
-                    d[k, :, i, j] = self.basemodel(x_p[:, i], x_g_temp[:, j])[0]
+                    d[k, :, i, j] = self.basemodel(x_p[:, i], x_g_temp[:, j])[-2]
                     label[k, :, i, j] = torch.where(y_p[:, i] == y_temp[:, j], torch.full_like(y_p[:, i], 1),
                                                     torch.full_like(y_p[:, i], 0))
 
             for i in range(num_g_per_id):
                 for j in range(num_g_per_id):
-                    # w[k, :, i, j] = self.basemodel(x_g[:, i], x_g_temp[:, j])[1]
+                    # w[k, :, i, j] = self.basemodel(x_g[:, i], x_g_temp[:, j])[-1]
                     w[k, :, i, j] = torch.where(y_g[:, i] == y_temp[:, j], torch.full_like(y_g[:, i], 1),
                                                 torch.full_like(y_g[:, i], 0))
 
