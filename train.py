@@ -49,6 +49,7 @@ parser.add_argument('--PCB', action='store_true', help='use PCB+ResNet50')
 parser.add_argument('--net_loss_model', default=0, type=int, help='net_loss_model')
 
 opt = parser.parse_args()
+print('opt = %s' % opt)
 print('net_loss_model = %d' % opt.net_loss_model)
 data_dir = opt.data_dir
 name = opt.name

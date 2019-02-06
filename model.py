@@ -318,7 +318,7 @@ class Sggnn_siamese(nn.Module):
         self.basemodel = siamesemodel
         self.hard_weight = hard_weight
 
-    def forward(self, x, y):
+    def forward(self, x, y=None):
         use_gpu = torch.cuda.is_available()
         batch_size = len(x)
         x_p = x[:, 0]
@@ -341,39 +341,41 @@ class Sggnn_siamese(nn.Module):
             d = d.cuda()
             w = w.cuda()
             label = label.cuda()
-
-        y_p = y[:, 0]
-        y_p = y_p.unsqueeze(1)
-        y_g = y[:, 1:]
+        if y is not None:
+            y_p = y[:, 0]
+            y_p = y_p.unsqueeze(1)
+            y_g = y[:, 1:]
 
         # print('batch_size = %d  num_p_per_batch = %d  num_g_per_batch = %d' % (batch_size, num_p_per_batch, num_g_per_batch))
         for k in range(batch_size):
             x_g_temp1 = x_g[:k]
             x_g_temp2 = x_g[k:]
             x_g_temp = torch.cat((x_g_temp2, x_g_temp1), 0)
-            y_temp1 = y_g[:k]
-            y_temp2 = y_g[k:]
-            y_temp = torch.cat((y_temp2, y_temp1), 0)
+            if y is not None:
+                y_temp1 = y_g[:k]
+                y_temp2 = y_g[k:]
+                y_temp = torch.cat((y_temp2, y_temp1), 0)
 
             for i in range(num_p_per_id):
                 for j in range(num_g_per_id):
                     d[k, :, i, j] = self.basemodel(x_p[:, i], x_g_temp[:, j])[-2]
-                    label[k, :, i, j] = torch.where(y_p[:, i] == y_temp[:, j], torch.full_like(y_p[:, i], 1),
-                                                    torch.full_like(y_p[:, i], 0))
+                    if y is not None:
+                        label[k, :, i, j] = torch.where(y_p[:, i] == y_temp[:, j], torch.full_like(y_p[:, i], 1),
+                                                        torch.full_like(y_p[:, i], 0))
 
             for i in range(num_g_per_id):
                 for j in range(num_g_per_id):
-                    if self.hard_weight:
+                    if self.hard_weight and y is not None:
                         w[k, :, i, j] = torch.where(y_g[:, i] == y_temp[:, j], torch.full_like(y_g[:, i], 1),
                                                     torch.full_like(y_g[:, i], 0))
                     else:
                         w[k, :, i, j] = self.basemodel(x_g[:, i], x_g_temp[:, j])[-1]
 
-        # label = torch.randint(0, 2, result.shape).cuda()
-
         print('run Sggnn_siamese foward success  !!!')
-        # return result, label
-        return d, w, label
+        if y is not None:
+            return d, w, label
+        else:
+            return d, w
 
 
 class Sggnn_gcn(nn.Module):
@@ -384,13 +386,13 @@ class Sggnn_gcn(nn.Module):
         # self.classifier = ClassBlock(input_dim=512, class_num=2)
         self.classifier = Fc_ClassBlock(input_dim=512, class_num=2, dropout=0.75, relu=False)
 
-    def forward(self, d, w, label):
+    def forward(self, d, w, label=None):
         use_gpu = torch.cuda.is_available()
         batch_size = len(d[0])
         num_p_per_id = len(d[0][0])  # 1
         num_g_per_id = len(d[0][0][0])  # 3
-        num_p_per_batch = len(d[0]) * len(d[0][0])  # 1
-        num_g_per_batch = len(d[0]) * len(d[0][0][0])  # 3
+        num_p_per_batch = len(d[0]) * len(d[0][0])  # 48
+        num_g_per_batch = len(d[0]) * len(d[0][0][0])  # 144
         len_feature = d.shape[-1]
         t = torch.FloatTensor(d.shape).zero_()
         d_new = torch.FloatTensor(d.shape).zero_()
@@ -404,7 +406,8 @@ class Sggnn_gcn(nn.Module):
             t = t.cuda()
             w = w.cuda()
             result = result.cuda()
-            label = label.cuda()
+            if label is not None:
+                label = label.cuda()
 
         # print('batch_size = %d  num_p_per_batch = %d  num_g_per_batch = %d' % (batch_size, num_p_per_batch, num_g_per_batch))
         for k in range(batch_size):
@@ -416,8 +419,9 @@ class Sggnn_gcn(nn.Module):
         d_new = d_new.reshape(batch_size, -1, len_feature)
         t = t.reshape(d.shape)
         w = w.reshape(batch_size * num_g_per_id, -1)
-        label = label.reshape(batch_size, -1)
         result = result.reshape(batch_size, -1, 2)
+        if label is not None:
+            label = label.reshape(batch_size, -1)
 
         # w need to be normalized
         w = self.preprocess_adj(w)
@@ -431,11 +435,15 @@ class Sggnn_gcn(nn.Module):
             feature = self.classifier.classifier(d_new[i, :])
             result[i, :] = feature.squeeze()
 
-        label = label.view(label.size(0) * label.size(1))
-        result = result.view(label.size(0), -1)
+        result = result.view((num_p_per_batch * num_g_per_batch), -1)
+        if label is not None:
+            label = label.view(label.size(0) * label.size(1))
 
         print('run Sggnn_gcn foward success  !!!')
-        return result, label
+        if label is not None:
+            return result, label
+        else:
+            return result
 
     def normalize(self, mx):
         """Row-normalize sparse matrix"""
