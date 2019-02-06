@@ -313,9 +313,10 @@ class SiameseNet(nn.Module):
 
 
 class Sggnn_siamese(nn.Module):
-    def __init__(self, siamesemodel):
+    def __init__(self, siamesemodel, hard_weight=True):
         super(Sggnn_siamese, self).__init__()
         self.basemodel = siamesemodel
+        self.hard_weight = hard_weight
 
     def forward(self, x, y):
         use_gpu = torch.cuda.is_available()
@@ -362,9 +363,11 @@ class Sggnn_siamese(nn.Module):
 
             for i in range(num_g_per_id):
                 for j in range(num_g_per_id):
-                    # w[k, :, i, j] = self.basemodel(x_g[:, i], x_g_temp[:, j])[-1]
-                    w[k, :, i, j] = torch.where(y_g[:, i] == y_temp[:, j], torch.full_like(y_g[:, i], 1),
-                                                torch.full_like(y_g[:, i], 0))
+                    if self.hard_weight:
+                        w[k, :, i, j] = torch.where(y_g[:, i] == y_temp[:, j], torch.full_like(y_g[:, i], 1),
+                                                    torch.full_like(y_g[:, i], 0))
+                    else:
+                        w[k, :, i, j] = self.basemodel(x_g[:, i], x_g_temp[:, j])[-1]
 
         # label = torch.randint(0, 2, result.shape).cuda()
 
