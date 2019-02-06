@@ -17,6 +17,7 @@ import os
 import scipy.io
 import yaml
 from model import ft_net, ft_net_dense, PCB, PCB_test
+from model import Sggnn_siamese, Sggnn_gcn, SiameseNet
 
 # fp16
 try:
@@ -114,11 +115,40 @@ use_gpu = torch.cuda.is_available()
 ######################################################################
 # Load model
 # ---------------------------
-def load_network(network):
+def load_network_easy(network):
     save_path = os.path.join('./model', name, 'net_%s.pth' % opt.which_epoch)
     network.load_state_dict(torch.load(save_path))
     return network
 
+
+def load_network(network, model_name=None):
+    if model_name == None:
+        save_path = os.path.join('./model', name, 'net_%s.pth' % 'whole_best')
+    else:
+        save_path = model_name
+    print('load whole pretrained model: %s' % save_path)
+    net_original = torch.load(save_path)
+    print('pretrained = %s' % net_original.embedding_net.model.features.conv0.weight[0, 0, 0])
+    pretrained_dict = net_original.state_dict()
+    model_dict = network.state_dict()
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+    print('network_original = %s' % network.embedding_net.model.features.conv0.weight[0, 0, 0])
+    model_dict.update(pretrained_dict)
+    network.load_state_dict(model_dict)
+    print('network_new = %s' % network.embedding_net.model.features.conv0.weight[0, 0, 0])
+
+    # old = []
+    # new = []
+    # for k, v in pretrained_dict.items():
+    #     old.append(k)
+    # for k in model_dict:
+    #     new.append(k)
+    # print('len(old) = %d   len(new) = %d' % (len(old), len(new)))
+    # for i in range(min(len(old), len(new))):
+    #     print('i = %d  old = %s' % (i, old[i]))
+    #     print('i = %d  new = %s' % (i, new[i]))
+    # exit()
+    return network
 
 ######################################################################
 # Extract feature
@@ -201,25 +231,33 @@ if opt.multi:
 ######################################################################
 # Load Collected data Trained model
 print('-------test-----------')
-if opt.use_dense:
-    model_structure = ft_net_dense(751)
-else:
-    model_structure = ft_net(751)
+# if opt.use_dense:
+#     model_structure = ft_net_dense(751)
+# else:
+#     model_structure = ft_net(751)
+#
+# if opt.PCB:
+#     model_structure = PCB(751)
+#
+# if opt.fp16:
+#     model_structure = network_to_half(model_structure)
+#
+# model = load_network_easy(model_structure)
+#
+# # Remove the final fc layer and classifier layer
+#
+# # Change to test mode
+# model = model.eval()
+# if use_gpu:
+#     model = model.cuda()
 
-if opt.PCB:
-    model_structure = PCB(751)
-
-if opt.fp16:
-    model_structure = network_to_half(model_structure)
-
-model = load_network(model_structure)
-
-# Remove the final fc layer and classifier layer
-
-# Change to test mode
-model = model.eval()
+#add for SGGNN
+embedding_net = ft_net_dense(751)
+model_siamese = SiameseNet(embedding_net)
+model_siamese = load_network(model_siamese)
+model_siamese = model_siamese.eval()
 if use_gpu:
-    model = model.cuda()
+    model = model_siamese.cuda()
 
 # Extract feature
 with torch.no_grad():

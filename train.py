@@ -524,7 +524,7 @@ def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
                 best_loss = epoch_loss
                 best_epoch = epoch
                 save_network(model, 'best')
-                save_whole_network(model, 'whole_best')
+                save_whole_network(model, 'whole_best_siamese')
 
             y_loss[phase].append(epoch_id_loss)
             y_err[phase].append(1.0 - epoch_id_acc)
@@ -545,12 +545,12 @@ def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
     # load best model weights
     model.load_state_dict(last_model_wts)
     save_network(model, 'last')
-    save_whole_network(model, 'whole_last')
+    save_whole_network(model, 'whole_last_siamese')
     return model
 
 
 def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, scheduler_siamese,
-                      model_gcn, loss_gcn_fn, optimizer_gcn, scheduler_gcn, num_epochs=25):
+              model_gcn, loss_gcn_fn, optimizer_gcn, scheduler_gcn, num_epochs=25):
     global cnt
     since = time.time()
     model_gcn.train(True)
@@ -598,6 +598,7 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
     time_elapsed = time.time() - since
     print('time = %f' % (time_elapsed))
     save_network(model_gcn, 'best')
+    save_whole_network(model_gcn, 'whole_best_gcn')
     return model_gcn
 
 
@@ -607,7 +608,7 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
 x_epoch = []
 fig = plt.figure()
 ax0 = fig.add_subplot(121, title="triplet_loss")
-ax1 = fig.add_subplot(122, title="top1err")
+ax1 = fig.add_subplot(122, title="top1_err")
 
 
 def draw_curve(current_epoch):
@@ -639,11 +640,14 @@ def load_network(network, model_name=None):
         save_path = model_name
     print('load whole pretrained model: %s' % save_path)
     net_original = torch.load(save_path)
+    print('pretrained = %s' % net_original.embedding_net.model.features.conv0.weight[0, 0, 0])
     pretrained_dict = net_original.state_dict()
     model_dict = network.state_dict()
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+    print('network_original = %s' % network.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_dict.update(pretrained_dict)
     network.load_state_dict(model_dict)
+    print('network_new = %s' % network.embedding_net.model.features.conv0.weight[0, 0, 0])
 
     # old = []
     # new = []
@@ -666,8 +670,6 @@ def save_network(network, epoch_label):
     save_filename = 'net_%s.pth' % epoch_label
     save_path = os.path.join('./model', name, save_filename)
     torch.save(network.state_dict(), save_path)
-    # if torch.cuda.is_available:
-    #     network.cuda(gpu_ids[0])
 
 
 def save_whole_network(network, epoch_label):
@@ -755,7 +757,7 @@ with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
 stage_0 = False
-stage_1 = True
+stage_1 = False
 stage_2 = True
 
 # if stage_0:
@@ -795,10 +797,13 @@ if stage_2:
     margin = 1.
     embedding_net = ft_net_dense(len(class_names))
     model_mid = SiameseNet(embedding_net)
+    print('model_mid_original = %s' % model_mid.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_mid = load_network(model_mid)
+    print('model_mid_new = %s' % model_mid.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_siamese = Sggnn_siamese(model_mid)
+    print('model_mid_new2 = %s' % model_siamese.basemodel.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_gcn = Sggnn_gcn()
-
+    print('model_gcn = %s' % model_gcn.rf.fc[0].weight[0][:5])
     # cnt = 0
     # for k, v in model_siamese.state_dict():
     #     print(k, v)

@@ -297,7 +297,7 @@ class SiameseNet(nn.Module):
     def forward(self, x1, x2=None):
         output1, feature1 = self.embedding_net(x1)
         if x2 is None:
-            return feature1
+            return output1, feature1
         output2, feature2 = self.embedding_net(x2)
         feature = (feature1 - feature2).pow(2)
 
