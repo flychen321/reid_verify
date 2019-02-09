@@ -8,6 +8,62 @@ import numpy as np
 import math
 import scipy.sparse as sp
 
+######################################################################
+# Load model
+# ---------------------------
+def load_network_easy(network, name, model_name=None):
+    if model_name == None:
+        save_path = os.path.join('./model', name, 'net_%s.pth' % 'best_siamese')
+    else:
+        save_path = os.path.join('./model', name, 'net_%s.pth' % model_name)
+    network.load_state_dict(torch.load(save_path))
+    return network
+
+
+def load_network(network, name, model_name=None):
+    if model_name == None:
+        save_path = os.path.join('./model', name, 'net_%s.pth' % 'whole_best_siamese')
+    else:
+        save_path = os.path.join('./model', name, 'net_%s.pth' % model_name)
+    # print('load whole pretrained model: %s' % save_path)
+    net_original = torch.load(save_path)
+    # print('pretrained = %s' % net_original.embedding_net.model.features.conv0.weight[0, 0, 0])
+    pretrained_dict = net_original.state_dict()
+    model_dict = network.state_dict()
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+    # print('network_original = %s' % network.embedding_net.model.features.conv0.weight[0, 0, 0])
+    model_dict.update(pretrained_dict)
+    network.load_state_dict(model_dict)
+    # print('network_new = %s' % network.embedding_net.model.features.conv0.weight[0, 0, 0])
+
+    # old = []
+    # new = []
+    # for k, v in pretrained_dict.items():
+    #     old.append(k)
+    # for k in model_dict:
+    #     new.append(k)
+    # print('len(old) = %d   len(new) = %d' % (len(old), len(new)))
+    # for i in range(min(len(old), len(new))):
+    #     print('i = %d  old = %s' % (i, old[i]))
+    #     print('i = %d  new = %s' % (i, new[i]))
+    # exit()
+    return network
+
+
+######################################################################
+# Save model
+# ---------------------------
+def save_network(network, name, epoch_label):
+    save_filename = 'net_%s.pth' % epoch_label
+    save_path = os.path.join('./model', name, save_filename)
+    torch.save(network.state_dict(), save_path)
+
+
+def save_whole_network(network, name, epoch_label):
+    save_filename = 'net_%s.pth' % epoch_label
+    save_path = os.path.join('./model', name, save_filename)
+    torch.save(network, save_path)
+
 
 ######################################################################
 def weights_init_kaiming(m):
@@ -510,7 +566,7 @@ class Sggnn_for_test(nn.Module):
             for j in range(t.shape[-1]):
                 d_new[i, :, j] = torch.mm(t[i, :, j].unsqueeze(0), w[i])
         result = self.classifier.classifier(d_new)
-        _, index = torch.sort(result[:, :, 0], 1)  # from small to large
+        _, index = torch.sort(result[:, :, 0], 1, descending=False)  # from small to large
         return index
 
     def preprocess_adj(self, adj):

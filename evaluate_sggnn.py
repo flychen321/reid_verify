@@ -8,50 +8,15 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from model import Sggnn_siamese, Sggnn_gcn, Sggnn_for_test
-
-######################################################################
-# Load model
-# ---------------------------
-def load_network_easy(network):
-    save_path = os.path.join('./model', 'sggnn', 'net_%s.pth' % 'last')
-    print('load pretrained model: %s' % save_path)
-    network.load_state_dict(torch.load(save_path))
-    return network
-
-
-def load_network(network, model_name=None):
-    if model_name == None:
-        save_path = os.path.join('./model', 'sggnn', 'net_%s.pth' % 'whole_best_gcn')
-    else:
-        save_path = model_name
-    print('load whole pretrained model: %s' % save_path)
-    net_original = torch.load(save_path)
-    pretrained_dict = net_original.state_dict()
-    model_dict = network.state_dict()
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-    model_dict.update(pretrained_dict)
-    network.load_state_dict(model_dict)
-
-    # old = []
-    # new = []
-    # for k, v in pretrained_dict.items():
-    #     old.append(k)
-    # for k in model_dict:
-    #     new.append(k)
-    # print('len(old) = %d   len(new) = %d' % (len(old), len(new)))
-    # for i in range(min(len(old), len(new))):
-    #     print('i = %d  old = %s' % (i, old[i]))
-    #     print('i = %d  new = %s' % (i, new[i]))
-    # exit()
-    return network
-
+from model import load_network_easy, load_network, save_network, save_whole_network
 
 ######################################################################
 # Trained model
 print('-------evaluate-----------')
+name = 'sggnn'
 use_gpu = torch.cuda.is_available()
 model_gcn = Sggnn_for_test()
-model_gcn = load_network(model_gcn)
+model_gcn = load_network(model_gcn, name, 'whole_best_gcn')
 if use_gpu:
     model = model_gcn.cuda()
 #######################################################################

@@ -18,7 +18,7 @@ import scipy.io
 import yaml
 from model import ft_net, ft_net_dense, PCB, PCB_test
 from model import Sggnn_siamese, Sggnn_gcn, SiameseNet
-
+from model import load_network_easy, load_network, save_network, save_whole_network
 # fp16
 try:
     from apex.fp16_utils import *
@@ -60,7 +60,8 @@ opt.use_dense = config['use_dense']
 
 str_ids = opt.gpu_ids.split(',')
 # which_epoch = opt.which_epoch
-name = opt.name
+# name = opt.name
+name = 'sggnn'
 test_dir = opt.test_dir
 
 gpu_ids = []
@@ -102,44 +103,6 @@ dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=opt.
 class_names = image_datasets['query'].classes
 use_gpu = torch.cuda.is_available()
 
-
-######################################################################
-# Load model
-# ---------------------------
-def load_network_easy(network):
-    save_path = os.path.join('./model', name, 'net_%s.pth' % opt.which_epoch)
-    network.load_state_dict(torch.load(save_path))
-    return network
-
-
-def load_network(network, model_name=None):
-    if model_name == None:
-        save_path = os.path.join('./model', name, 'net_%s.pth' % 'whole_best')
-    else:
-        save_path = model_name
-    print('load whole pretrained model: %s' % save_path)
-    net_original = torch.load(save_path)
-    print('pretrained = %s' % net_original.embedding_net.model.features.conv0.weight[0, 0, 0])
-    pretrained_dict = net_original.state_dict()
-    model_dict = network.state_dict()
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-    print('network_original = %s' % network.embedding_net.model.features.conv0.weight[0, 0, 0])
-    model_dict.update(pretrained_dict)
-    network.load_state_dict(model_dict)
-    print('network_new = %s' % network.embedding_net.model.features.conv0.weight[0, 0, 0])
-
-    # old = []
-    # new = []
-    # for k, v in pretrained_dict.items():
-    #     old.append(k)
-    # for k in model_dict:
-    #     new.append(k)
-    # print('len(old) = %d   len(new) = %d' % (len(old), len(new)))
-    # for i in range(min(len(old), len(new))):
-    #     print('i = %d  old = %s' % (i, old[i]))
-    #     print('i = %d  new = %s' % (i, new[i]))
-    # exit()
-    return network
 
 ######################################################################
 # Extract feature
@@ -221,7 +184,7 @@ query_cam, query_label = get_id(query_path)
 print('-------test-----------')
 embedding_net = ft_net_dense(751)
 model_siamese = SiameseNet(embedding_net)
-model_siamese = load_network(model_siamese)
+model_siamese = load_network(model_siamese, name)
 model_siamese = model_siamese.eval()
 if use_gpu:
     model = model_siamese.cuda()
