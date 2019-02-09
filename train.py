@@ -52,7 +52,8 @@ opt = parser.parse_args()
 print('opt = %s' % opt)
 print('net_loss_model = %d' % opt.net_loss_model)
 data_dir = opt.data_dir
-name = opt.name
+# name = opt.name
+name = 'sggnn'
 str_ids = opt.gpu_ids.split(',')
 gpu_ids = []
 for str_id in str_ids:
@@ -595,6 +596,8 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
             loss.backward()
             optimizer_gcn.step()
             print('batch_idx = %4d  loss = %f' % (batch_idx, loss))
+            # if batch_idx > 0:
+            #     break
 
     time_elapsed = time.time() - since
     print('time = %f' % (time_elapsed))
@@ -824,7 +827,7 @@ if stage_2:
     scheduler_siamese = lr_scheduler.StepLR(optimizer_siamese, 8, gamma=0.1, last_epoch=-1)
     optimizer_gcn = optim.Adam(model_gcn.parameters(), lr=lr)
     scheduler_gcn = lr_scheduler.StepLR(optimizer_gcn, 8, gamma=0.1, last_epoch=-1)
-    n_epochs = 2
+    n_epochs = 1
     log_interval = 100
     model = train_gcn(dataloaders_gcn['train'], model_siamese, loss_siamese_fn, optimizer_siamese, scheduler_siamese,
                       model_gcn, loss_gcn_fn, optimizer_gcn, scheduler_gcn, num_epochs=n_epochs)
