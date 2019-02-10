@@ -644,8 +644,8 @@ if opt.PCB:
     model = PCB(len(class_names))
 
 model_verif = verif_net()
-print(model)
-print(model_verif)
+# print(model)
+# print(model_verif)
 
 if use_gpu:
     model = model.cuda()
@@ -711,6 +711,9 @@ stage_1 = True
 stage_2 = False
 
 if stage_0:
+    print('train_model_siamese_with_two_model structure')
+    print(model)
+    print(model_verif)
     # train_model = train_model_triplet
     train_model = train_model_siamese_with_two_model
     model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
