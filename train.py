@@ -395,7 +395,7 @@ def train_model_siamese_with_two_model(model, model_verif, criterion, optimizer,
             epoch_id_acc = running_id_corrects / (datasize * 2)
             epoch_verif_acc = running_verif_corrects / datasize
 
-            print('{} Loss_id: {:.4f} Loss_verif: {:.4f}  Acc_id: {:.4f} Verif_Acc: {:.4f} '.format(
+            print('{}  stage0  Loss_id: {:.4f} Loss_verif: {:.4f}  Acc_id: {:.4f} Verif_Acc: {:.4f} '.format(
                 phase, epoch_id_loss, epoch_verif_loss, epoch_id_acc, epoch_verif_acc))
 
             epoch_acc = (epoch_id_acc + epoch_verif_acc) / 2.0
@@ -404,7 +404,7 @@ def train_model_siamese_with_two_model(model, model_verif, criterion, optimizer,
                 best_acc = epoch_acc
                 best_loss = epoch_loss
                 best_epoch = epoch
-                save_network(model, name, 'best')
+                save_network(model, name, 'stage0_best')
 
             y_loss[phase].append(epoch_id_loss)
             y_err[phase].append(1.0 - epoch_id_acc)
@@ -424,7 +424,7 @@ def train_model_siamese_with_two_model(model, model_verif, criterion, optimizer,
 
     # load best model weights
     model.load_state_dict(last_model_wts)
-    save_network(model, name, 'last')
+    save_network(model, name, 'stage0_last')
     return model
 
 
@@ -706,15 +706,15 @@ if not os.path.isdir(dir_name):
 with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
-stage_0 = False
+stage_0 = True
 stage_1 = True
-stage_2 = True
+stage_2 = False
 
-# if stage_0:
-#     # train_model = train_model_triplet
-#     train_model = train_model_siamese_with_two_model
-#     model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
-#                         num_epochs=60)
+if stage_0:
+    # train_model = train_model_triplet
+    train_model = train_model_siamese_with_two_model
+    model = train_model(model, model_verif, criterion, optimizer_ft, exp_lr_scheduler,
+                        num_epochs=60)
 
 if stage_1:
     embedding_net = ft_net_dense(len(class_names))
@@ -739,9 +739,9 @@ if stage_1:
     #     {'params': model_siamese.parameters(), 'lr': opt.lr}
     # ], weight_decay=5e-4, momentum=0.9, nesterov=True)
 
-    exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[40, 60, 70], gamma=0.1)
+    exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[40, 60], gamma=0.1)
     model = train_model_siamese(model_siamese, criterion, optimizer_ft, exp_lr_scheduler,
-                                num_epochs=70)
+                                num_epochs=60)
 
 if stage_2:
     margin = 1.
