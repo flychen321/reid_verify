@@ -644,8 +644,8 @@ if opt.PCB:
     model = PCB(len(class_names))
 
 model_verif = verif_net()
-# print(model)
-# print(model_verif)
+print(model)
+print(model_verif)
 
 if use_gpu:
     model = model.cuda()
@@ -706,7 +706,7 @@ if not os.path.isdir(dir_name):
 with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
-stage_0 = True
+stage_0 = False
 stage_1 = True
 stage_2 = False
 
@@ -724,11 +724,12 @@ if stage_1:
     print('model_siamese structure')
     print(model_siamese)
 
-    stage_1_id = list(map(id, model_siamese.parameters()))
-    stage_1_base_id = list(map(id, model_siamese.embedding_net.parameters()))
-    stage_1_base_params = filter(lambda p: id(p) in stage_1_base_id, model_siamese.parameters())
-    stage_1_classifier_params = filter(lambda p: id(p) in stage_1_id and id(p) not in stage_1_base_id,
-                                       model_siamese.parameters())
+    # stage_1_id = list(map(id, model_siamese.parameters()))
+    # stage_1_base_id = list(map(id, model_siamese.embedding_net.parameters()))
+    stage_1_classifier_id = list(map(id, model_siamese.embedding_net.classifier.parameters())) \
+                            + list(map(id, model_siamese.classifier.parameters()))
+    stage_1_classifier_params = filter(lambda p: id(p) in stage_1_classifier_id, model_siamese.parameters())
+    stage_1_base_params = filter(lambda p: id(p) not in stage_1_classifier_id, model_siamese.parameters())
 
     optimizer_ft = optim.Adam([
         {'params': stage_1_base_params, 'lr': 0.1 * opt.lr},

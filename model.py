@@ -13,19 +13,20 @@ import scipy.sparse as sp
 # ---------------------------
 def load_network_easy(network, name, model_name=None):
     if model_name == None:
-        save_path = os.path.join('./model', name, 'net_%s.pth' % 'best_siamese')
+        save_path = os.path.join('./model', name, 'net_%s.pth' % 'last_siamese')
     else:
         save_path = os.path.join('./model', name, 'net_%s.pth' % model_name)
+    print('load whole pretrained model: %s' % save_path)
     network.load_state_dict(torch.load(save_path))
     return network
 
 
 def load_network(network, name, model_name=None):
     if model_name == None:
-        save_path = os.path.join('./model', name, 'net_%s.pth' % 'whole_best_siamese')
+        save_path = os.path.join('./model', name, 'net_%s.pth' % 'whole_last_siamese')
     else:
         save_path = os.path.join('./model', name, 'net_%s.pth' % model_name)
-    # print('load whole pretrained model: %s' % save_path)
+    print('load whole pretrained model: %s' % save_path)
     net_original = torch.load(save_path)
     # print('pretrained = %s' % net_original.embedding_net.model.features.conv0.weight[0, 0, 0])
     pretrained_dict = net_original.state_dict()

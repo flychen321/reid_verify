@@ -118,7 +118,7 @@ use_gpu = torch.cuda.is_available()
 # ---------------------------
 def load_network_easy(network, label=None):
     if label == None:
-        save_path = os.path.join('./model', name, 'net_%s.pth' % 'best')
+        save_path = os.path.join('./model', name, 'net_%s.pth' % 'last')
     else:
         save_path = os.path.join('./model', name, 'net_%s.pth' % label)
     print('load whole pretrained model: %s' % save_path)
@@ -247,7 +247,7 @@ if opt.PCB:
 if opt.fp16:
     model_structure = network_to_half(model_structure)
 
-model = load_network_easy(model_structure, 'stage0_best')
+model = load_network_easy(model_structure, 'stage0_last')
 
 # Remove the final fc layer and classifier layer
 
