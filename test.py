@@ -115,8 +115,13 @@ use_gpu = torch.cuda.is_available()
 ######################################################################
 # Load model
 # ---------------------------
-def load_network_easy(network):
-    save_path = os.path.join('./model', name, 'net_%s.pth' % opt.which_epoch)
+def load_network_easy(network, label=None):
+    if label == None:
+        save_path = os.path.join('./model', name, 'net_%s.pth' % 'best')
+    else:
+        save_path = os.path.join('./model', name, 'net_%s.pth' % label)
+    print('load whole pretrained model: %s' % save_path)q
+
     network.load_state_dict(torch.load(save_path))
     return network
 
@@ -231,33 +236,33 @@ if opt.multi:
 ######################################################################
 # Load Collected data Trained model
 print('-------test-----------')
-# if opt.use_dense:
-#     model_structure = ft_net_dense(751)
-# else:
-#     model_structure = ft_net(751)
-#
-# if opt.PCB:
-#     model_structure = PCB(751)
-#
-# if opt.fp16:
-#     model_structure = network_to_half(model_structure)
-#
-# model = load_network_easy(model_structure)
-#
-# # Remove the final fc layer and classifier layer
-#
-# # Change to test mode
-# model = model.eval()
-# if use_gpu:
-#     model = model.cuda()
+if opt.use_dense:
+    model_structure = ft_net_dense(751)
+else:
+    model_structure = ft_net(751)
+
+if opt.PCB:
+    model_structure = PCB(751)
+
+if opt.fp16:
+    model_structure = network_to_half(model_structure)
+
+model = load_network_easy(model_structure, 'stage0_best')
+
+# Remove the final fc layer and classifier layer
+
+# Change to test mode
+model = model.eval()
+if use_gpu:
+    model = model.cuda()
 
 #add for SGGNN
-embedding_net = ft_net_dense(751)
-model_siamese = SiameseNet(embedding_net)
-model_siamese = load_network_easy(model_siamese)
-model_siamese = model_siamese.eval()
-if use_gpu:
-    model = model_siamese.cuda()
+# embedding_net = ft_net_dense(751)
+# model_siamese = SiameseNet(embedding_net)
+# model_siamese = load_network_easy(model_siamese)
+# model_siamese = model_siamese.eval()
+# if use_gpu:
+#     model = model_siamese.cuda()
 
 # Extract feature
 with torch.no_grad():

@@ -707,7 +707,7 @@ with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
 stage_0 = True
-stage_1 = True
+stage_1 = False
 stage_2 = False
 
 if stage_0:
