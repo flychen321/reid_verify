@@ -595,8 +595,8 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
             total_loss += loss.item()
             loss.backward()
             optimizer_gcn.step()
-            if batch_idx % 10 == 0:
-                print('batch_idx = %4d  loss = %f' % (batch_idx, loss))
+            if batch_idx % 5 == 0:
+                print('epoch = %2d  batch_idx = %4d  loss = %.5f' % (epoch, batch_idx, loss))
             # if batch_idx > 0:
             #     break
 
@@ -778,8 +778,8 @@ if stage_2:
     optimizer_siamese = optim.Adam(model_siamese.parameters(), lr=lr)
     scheduler_siamese = lr_scheduler.StepLR(optimizer_siamese, 8, gamma=0.1, last_epoch=-1)
     optimizer_gcn = optim.Adam(model_gcn.parameters(), lr=lr)
-    scheduler_gcn = lr_scheduler.StepLR(optimizer_gcn, 2, gamma=0.1, last_epoch=-1)
-    n_epochs = 5
+    scheduler_gcn = lr_scheduler.StepLR(optimizer_gcn, 3, gamma=0.1, last_epoch=-1)
+    n_epochs = 10
     log_interval = 100
     model = train_gcn(dataloaders_gcn['train'], model_siamese, loss_siamese_fn, optimizer_siamese, scheduler_siamese,
                       model_gcn, loss_gcn_fn, optimizer_gcn, scheduler_gcn, num_epochs=n_epochs)
