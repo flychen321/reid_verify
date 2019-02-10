@@ -11,10 +11,9 @@ for i in np.arange(1):
     print('cmd = %s' % cmd)
     os.system(cmd)
 
-    # os.system('python test_sggnn.py  --use_dense --gpu_ids 0 --name ft_DesNet --which_epoch last ' + ' >>  ' + log_name)
-    # os.system('python evaluate_rerank.py' + ' >> ' + log_name)
+    os.system('python test_sggnn.py  --use_dense --gpu_ids 0 --name ft_DesNet --which_epoch last ' + ' >>  ' + log_name)
 
-    os.system('python test.py  --use_dense --gpu_ids 0 --name ft_DesNet --which_epoch best ' + ' >>  ' + log_name)
+    # os.system('python test.py  --use_dense --gpu_ids 0 --name ft_DesNet --which_epoch best ' + ' >>  ' + log_name)
     os.system('python evaluate_gpu.py' + ' >> ' + log_name)
     os.system('python evaluate_rerank.py' + ' >> ' + log_name)
 
