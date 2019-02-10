@@ -595,7 +595,8 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
             total_loss += loss.item()
             loss.backward()
             optimizer_gcn.step()
-            print('batch_idx = %4d  loss = %f' % (batch_idx, loss))
+            if batch_idx % 10 == 0:
+                print('batch_idx = %4d  loss = %f' % (batch_idx, loss))
             # if batch_idx > 0:
             #     break
 
@@ -707,8 +708,8 @@ with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
 stage_0 = False
-stage_1 = True
-stage_2 = False
+stage_1 = False
+stage_2 = True
 
 if stage_0:
     print('train_model_siamese_with_two_model structure')
@@ -777,7 +778,7 @@ if stage_2:
     optimizer_siamese = optim.Adam(model_siamese.parameters(), lr=lr)
     scheduler_siamese = lr_scheduler.StepLR(optimizer_siamese, 8, gamma=0.1, last_epoch=-1)
     optimizer_gcn = optim.Adam(model_gcn.parameters(), lr=lr)
-    scheduler_gcn = lr_scheduler.StepLR(optimizer_gcn, 3, gamma=0.1, last_epoch=-1)
+    scheduler_gcn = lr_scheduler.StepLR(optimizer_gcn, 2, gamma=0.1, last_epoch=-1)
     n_epochs = 5
     log_interval = 100
     model = train_gcn(dataloaders_gcn['train'], model_siamese, loss_siamese_fn, optimizer_siamese, scheduler_siamese,
