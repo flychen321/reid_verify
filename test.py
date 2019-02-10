@@ -52,7 +52,8 @@ opt.use_dense = config['use_dense']
 
 str_ids = opt.gpu_ids.split(',')
 # which_epoch = opt.which_epoch
-name = opt.name
+# name = opt.name
+name = 'sggnn'
 test_dir = opt.test_dir
 
 gpu_ids = []
@@ -120,8 +121,7 @@ def load_network_easy(network, label=None):
         save_path = os.path.join('./model', name, 'net_%s.pth' % 'best')
     else:
         save_path = os.path.join('./model', name, 'net_%s.pth' % label)
-    print('load whole pretrained model: %s' % save_path)q
-
+    print('load whole pretrained model: %s' % save_path)
     network.load_state_dict(torch.load(save_path))
     return network
 
