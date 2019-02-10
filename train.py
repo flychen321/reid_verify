@@ -556,7 +556,7 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
     global cnt
     since = time.time()
     model_gcn.train(True)
-    model_siamese.train(False)
+    model_siamese.eval()
     losses = []
     total_loss = 0
     for epoch in range(num_epochs):
