@@ -733,6 +733,7 @@ if stage_1:
     stage_1_classifier_params = filter(lambda p: id(p) in stage_1_classifier_id, model_siamese.parameters())
     stage_1_base_params = filter(lambda p: id(p) not in stage_1_classifier_id, model_siamese.parameters())
 
+    # This manner's effect is worse than SGD
     # optimizer_ft = optim.Adam([
     #     {'params': stage_1_base_params, 'lr': 0.1 * opt.lr},
     #     {'params': stage_1_classifier_params, 'lr': 1 * opt.lr},
@@ -742,23 +743,6 @@ if stage_1:
         {'params': stage_1_base_params, 'lr': 0.1 * opt.lr},
         {'params': stage_1_classifier_params, 'lr': 1 * opt.lr},
     ], weight_decay=5e-4, momentum=0.9, nesterov=True)
-
-    # ignored_params = list(map(id, model_siamese.embedding_net.model.fc.parameters())) \
-    #                  + list(map(id, model_siamese.embedding_net.classifier.parameters()))\
-    #                  + list(map(id, model_siamese.classifier.parameters()))
-    # base_params = filter(lambda p: id(p) not in ignored_params, model_siamese.parameters())
-    # optimizer_ft = optim.SGD([
-    #     {'params': base_params, 'lr': 0.1 * opt.lr},
-    #     {'params': model_siamese.embedding_net.model.fc.parameters(), 'lr': opt.lr},
-    #     {'params': model_siamese.embedding_net.classifier.parameters(), 'lr': opt.lr},
-    #     {'params': model_siamese.classifier.parameters(), 'lr': opt.lr}
-    # ], weight_decay=5e-4, momentum=0.9, nesterov=True)
-
-
-
-    # optimizer_ft = optim.SGD([
-    #     {'params': model_siamese.parameters(), 'lr': opt.lr}
-    # ], weight_decay=5e-4, momentum=0.9, nesterov=True)
 
     exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[40, 60], gamma=0.1)
     model = train_model_siamese(model_siamese, criterion, optimizer_ft, exp_lr_scheduler,
