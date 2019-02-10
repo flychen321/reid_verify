@@ -7,7 +7,7 @@ import os
 import numpy as np
 import math
 import scipy.sparse as sp
-
+import torch.nn.functional as F
 ######################################################################
 # Load model
 # ---------------------------
@@ -389,8 +389,7 @@ class Sggnn_siamese(nn.Module):
         len_feature = 512
         d = torch.FloatTensor(batch_size, batch_size, num_p_per_id, num_g_per_id, len_feature).zero_()
         # this w for dynamic calculate the weight
-        # w = torch.FloatTensor(batch_size, batch_size, num_g_per_id, num_g_per_id, 1).zero_()
-        # this w for calculate the weight by label
+        # this w for calculate the weight by label too
         w = torch.FloatTensor(batch_size, batch_size, num_g_per_id, num_g_per_id).zero_()
         label = torch.LongTensor(batch_size, batch_size, num_p_per_id, num_g_per_id).zero_()
 
@@ -426,9 +425,10 @@ class Sggnn_siamese(nn.Module):
                         w[k, :, i, j] = torch.where(y_g[:, i] == y_temp[:, j], torch.full_like(y_g[:, i], 1),
                                                     torch.full_like(y_g[:, i], 0))
                     else:
-                        w[k, :, i, j] = self.basemodel(x_g[:, i], x_g_temp[:, j])[-1]
+                        # 1 for similar & 0 for different
+                        w[k, :, i, j] = F.softmax(self.basemodel(x_g[:, i], x_g_temp[:, j])[-1])[:, 1]
 
-        print('run Sggnn_siamese foward success  !!!')
+        # print('run Sggnn_siamese foward success  !!!')
         if y is not None:
             return d, w, label
         else:
@@ -492,7 +492,7 @@ class Sggnn_gcn(nn.Module):
         if label is not None:
             label = label.view(label.size(0) * label.size(1))
 
-        print('run Sggnn_gcn foward success  !!!')
+        # print('run Sggnn_gcn foward success  !!!')
         if label is not None:
             return result, label
         else:
@@ -563,11 +563,11 @@ class Sggnn_for_test(nn.Module):
             t[:, i] = self.rf(d[:, i])
         for i in range(batch_size):
             w[i] = self.preprocess_adj(w[i])
-            # d_new[i] = torch.mm(t[i], w[i])
             for j in range(t.shape[-1]):
                 d_new[i, :, j] = torch.mm(t[i, :, j].unsqueeze(0), w[i])
-        result = self.classifier.classifier(d_new)
-        _, index = torch.sort(result[:, :, 0], 1, descending=False)  # from small to large
+        # 1 for similar & 0 for different
+        result = F.softmax(self.classifier.classifier(d_new))[:, 1]
+        _, index = torch.sort(result[:, :, 0], 1, descending=True)
         return index
 
     def preprocess_adj(self, adj):

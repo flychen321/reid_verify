@@ -29,18 +29,15 @@ def evaluate(qf, ql, qc, gf, gl, gc, model=model):
     model.eval()
     query = qf.view(-1, 1)
     # print(query.shape)
-    # score = torch.mm(gf, query)
     score = ((gf - qf).pow(2)).sum(1)  # Ed distance
-    # score = score.squeeze(1).cpu()
     score = score.cpu().numpy()
     # predict index
     index = np.argsort(score)  # from small to large
-    # index = index[::-1]      # Ed distance
+    # index = index[::-1]      # Ed distance does not need this operate
     # operate for sggnn
     with torch.no_grad():
         index_new_100 = model(qf.unsqueeze(0), gf[index[:100]].unsqueeze(0))
     index[:100] = index[:100][index_new_100.squeeze()]
-
 
     # good index
     query_index = np.argwhere(gl == ql)
@@ -91,7 +88,6 @@ def compute_mAP(index, qc, good_index, junk_index):
     return ap, cmc
 
 
-
 ######################################################################
 result = scipy.io.loadmat('pytorch_result.mat')
 query_feature = torch.FloatTensor(result['query_f'])
@@ -102,7 +98,6 @@ gallery_cam = result['gallery_cam'][0]
 gallery_label = result['gallery_label'][0]
 
 multi = os.path.isfile('multi_query.mat')
-
 
 query_feature = query_feature.cuda()
 gallery_feature = gallery_feature.cuda()
