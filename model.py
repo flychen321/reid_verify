@@ -566,8 +566,8 @@ class Sggnn_for_test(nn.Module):
             for j in range(t.shape[-1]):
                 d_new[i, :, j] = torch.mm(t[i, :, j].unsqueeze(0), w[i])
         # 1 for similar & 0 for different
-        result = F.softmax(self.classifier.classifier(d_new))[:, 1]
-        _, index = torch.sort(result[:, :, 0], 1, descending=True)
+        result = F.softmax(self.classifier.classifier(d_new), -1)[:, :, 1]
+        _, index = torch.sort(result, -1, descending=True)
         return index
 
     def preprocess_adj(self, adj):

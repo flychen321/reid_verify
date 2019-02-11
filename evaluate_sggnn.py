@@ -114,7 +114,7 @@ for i in range(len(query_label)):
     CMC = CMC + CMC_tmp
     ap += ap_tmp
     if i % 10 == 0:
-        print(i, CMC_tmp[0])
+        print('i = %3d    CMC_tmp[0] = %s' % (i, CMC_tmp[0].numpy()))
 
 CMC = CMC.float()
 CMC = CMC / len(query_label)  # average CMC
