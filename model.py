@@ -451,9 +451,6 @@ class Sggnn_gcn(nn.Module):
         len_feature = d.shape[-1]
         t = torch.FloatTensor(d.shape).zero_()
         d_new = torch.FloatTensor(d.shape).zero_()
-        # this w for dynamic calculate the weight
-        # w = torch.FloatTensor(batch_size, batch_size, num_g_per_batch, num_g_per_batch, 1).zero_()
-        # this w for calculate the weight by label
         result = torch.FloatTensor(d.shape[: -1] + (2,)).zero_()
         if use_gpu:
             d = d.cuda()
@@ -545,9 +542,8 @@ class Sggnn_for_test(nn.Module):
     def forward(self, qf, gf):
         use_gpu = torch.cuda.is_available()
         batch_size = len(qf)
-        num_p_per_id = len(qf[0])  # 1
         num_g_per_id = len(gf[0])  # 100
-        d = (qf - gf).pow(2)
+        d = (qf.unsqueeze(1) - gf).pow(2)
         t = torch.FloatTensor(d.shape).zero_()
         d_new = torch.FloatTensor(d.shape).zero_()
         w = torch.FloatTensor(batch_size, num_g_per_id, num_g_per_id).zero_()
@@ -562,9 +558,13 @@ class Sggnn_for_test(nn.Module):
         for i in range(num_g_per_id):
             t[:, i] = self.rf(d[:, i])
         for i in range(batch_size):
+            # w[i] = (-w[i]).exp()
+            # w[i] = w[i] - torch.eye(w[i].size(0)).cuda()
             w[i] = self.preprocess_adj(w[i])
             for j in range(t.shape[-1]):
                 d_new[i, :, j] = torch.mm(t[i, :, j].unsqueeze(0), w[i])
+                # without d -> t
+                # d_new[i, :, j] = torch.mm(d[i, :, j].unsqueeze(0), w[i])
         # 1 for similar & 0 for different
         result = F.softmax(self.classifier.classifier(d_new), -1)[:, :, 1]
         _, index = torch.sort(result, -1, descending=True)

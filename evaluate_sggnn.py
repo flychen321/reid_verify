@@ -27,30 +27,37 @@ cam_metric = torch.zeros(6, 6)
 
 def evaluate(qf, ql, qc, gf, gl, gc, model=model):
     model.eval()
-    query = qf.view(-1, 1)
-    # print(query.shape)
-    score = ((gf - qf).pow(2)).sum(1)  # Ed distance
-    score = score.cpu().numpy()
-    # predict index
-    index = np.argsort(score)  # from small to large
-    # index = index[::-1]      # Ed distance does not need this operate
+    batchsize = len(qf)
+    index = np.zeros((batchsize, len(gf)), dtype=np.int32)
+    ap_tmp = np.zeros((batchsize,), dtype=np.float)
+    CMC_tmp = torch.IntTensor(batchsize, len(gf)).zero_()
+    for i in range(batchsize):
+        score = ((gf - qf[i]).pow(2)).sum(1)  # Ed distance
+        score = score.cpu().numpy()
+        # predict index
+        index[i] = np.argsort(score)  # from small to large
+
     # operate for sggnn
+    g_num = 100
     with torch.no_grad():
-        index_new_100 = model(qf.unsqueeze(0), gf[index[:100]].unsqueeze(0))
-    index[:100] = index[:100][index_new_100.squeeze()]
+        index_new_100 = model(qf, gf[index[:, :g_num]])
+        for i in range(batchsize):
+            index[i, :g_num] = index[i, :g_num][index_new_100[i]]
 
-    # good index
-    query_index = np.argwhere(gl == ql)
-    # same camera
-    camera_index = np.argwhere(gc == qc)
+    for i in range(batchsize):
+        # good index
+        query_index = np.argwhere(gl == ql[i])
+        # same camera
+        camera_index = np.argwhere(gc == qc[i])
 
-    good_index = np.setdiff1d(query_index, camera_index, assume_unique=True)
-    junk_index1 = np.argwhere(gl == -1)
-    junk_index2 = np.intersect1d(query_index, camera_index)
-    junk_index = np.append(junk_index2, junk_index1)  # .flatten())
+        good_index = np.setdiff1d(query_index, camera_index, assume_unique=True)
+        junk_index1 = np.argwhere(gl == -1)
+        junk_index2 = np.intersect1d(query_index, camera_index)
+        junk_index = np.append(junk_index2, junk_index1)  # .flatten())
 
-    CMC_tmp = compute_mAP(index, qc, good_index, junk_index)
-    return CMC_tmp
+        ap_tmp[i], CMC_tmp[i] = compute_mAP(index[i], qc, good_index, junk_index)
+
+    return ap_tmp, CMC_tmp
 
 
 def compute_mAP(index, qc, good_index, junk_index):
@@ -107,24 +114,30 @@ CMC = torch.IntTensor(len(gallery_label)).zero_()
 ap = 0.0
 # print(query_label)
 
+batchsize = 256
 right_cnt = 0
-for i in range(len(query_label)):
-    ap_tmp, CMC_tmp = evaluate(query_feature[i], query_label[i], query_cam[i], gallery_feature, gallery_label,
+i = 0
+while i < len(query_label):
+    ap_tmp, CMC_tmp = evaluate(query_feature[i: min(i + batchsize, len(query_label))],
+                               query_label[i: min(i + batchsize, len(query_label))],
+                               query_cam[i: min(i + batchsize, len(query_label))], gallery_feature, gallery_label,
                                gallery_cam)
-    if CMC_tmp[0] == -1:
-        continue
-    CMC = CMC + CMC_tmp
-    ap += ap_tmp
 
-    if CMC_tmp[0].numpy() == 1:
-        right_cnt += 1
+    for j in range(min(batchsize, len(query_label) - i)):
+        if CMC_tmp[j][0] == -1:
+            continue
+        CMC = CMC + CMC_tmp[j]
+        ap += ap_tmp[j]
 
-    if i % 10 == 0:
-        print('i = %3d    CMC_tmp[0] = %s   real time rank1 = %.4f' % (i, CMC_tmp[0].numpy(), float(right_cnt)/(i+1)))
+        if CMC_tmp[j][0].numpy() == 1:
+            right_cnt += 1
+
+    i += batchsize
+    print('i = %3d    CMC_tmp[0] = %s   real time rank1 = %.4f' % (i, CMC_tmp[0].numpy(), float(right_cnt) / i))
 
 CMC = CMC.float()
 CMC = CMC / len(query_label)  # average CMC
-print('Rank@1:%f Rank@5:%f Rank@10:%f mAP:%f' % (CMC[0], CMC[4], CMC[9], ap / len(query_label)))
+print('Rank@1:%.4f  Rank@5:%.4f  Rank@10:%.4f  mAP:%.4f' % (CMC[0], CMC[4], CMC[9], ap / len(query_label)))
 
 # multiple-query
 CMC = torch.IntTensor(len(gallery_label)).zero_()
