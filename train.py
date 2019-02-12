@@ -483,8 +483,8 @@ def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
                 loss_id2 = criterion(outputs2, id_labels[1])
                 loss_id = loss_id1 + loss_id2
                 loss_verif = criterion(score, vf_labels)
-                # loss = loss_verif * opt.alpha + loss_id
-                loss = loss_verif
+                loss = loss_verif + loss_id
+                # loss = loss_verif
                 # if opt.net_loss_model == 0:
                 #     loss = loss_id + loss_verif
                 # elif opt.net_loss_model == 1:
