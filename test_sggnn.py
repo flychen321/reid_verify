@@ -184,7 +184,7 @@ query_cam, query_label = get_id(query_path)
 print('-------test-----------')
 embedding_net = ft_net_dense(751)
 model_siamese = SiameseNet(embedding_net)
-model_siamese = load_network(model_siamese, name)
+model_siamese = load_network_easy(model_siamese, name)
 model_siamese = model_siamese.eval()
 if use_gpu:
     model = model_siamese.cuda()

@@ -132,8 +132,8 @@ while i < len(query_label):
         if CMC_tmp[j][0].numpy() == 1:
             right_cnt += 1
 
-    i += batchsize
-    print('i = %3d    CMC_tmp[0] = %s   real time rank1 = %.4f' % (i, CMC_tmp[0].numpy(), float(right_cnt) / i))
+    i += min(batchsize, len(query_label) - i)
+    print('i = %4d    CMC_tmp[0] = %s   real time rank1 = %.4f' % (i, CMC_tmp[0].numpy(), float(right_cnt) / i))
 
 CMC = CMC.float()
 CMC = CMC / len(query_label)  # average CMC
