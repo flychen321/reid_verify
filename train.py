@@ -745,9 +745,10 @@ if stage_1:
         {'params': stage_1_classifier_params, 'lr': 1 * opt.lr},
     ], weight_decay=5e-4, momentum=0.9, nesterov=True)
 
-    exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[40, 60], gamma=0.1)
+    # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[40, 60], gamma=0.1)
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=40, gamma=0.1)
     model = train_model_siamese(model_siamese, criterion, optimizer_ft, exp_lr_scheduler,
-                                num_epochs=60)
+                                num_epochs=130)
 
 if stage_2:
     margin = 1.
