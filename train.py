@@ -600,6 +600,7 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
             # if batch_idx > 0:
             #     break
         save_network(model_gcn, name, 'gcn' + str(epoch))
+        save_whole_network(model_gcn, name, 'whole_gcn' + str(epoch))
     time_elapsed = time.time() - since
     print('time = %f' % (time_elapsed))
     save_network(model_gcn, name, 'best_gcn')
