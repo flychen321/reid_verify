@@ -98,6 +98,8 @@ print(query_feature.shape)
 CMC = torch.IntTensor(len(gallery_label)).zero_()
 ap = 0.0
 right_cnt = 0
+former_right_cnt = 0
+former_i = 0
 # print(query_label)
 for i in range(len(query_label)):
     ap_tmp, CMC_tmp = evaluate(query_feature[i], query_label[i], query_cam[i], gallery_feature, gallery_label,
@@ -111,8 +113,10 @@ for i in range(len(query_label)):
     if CMC_tmp[0].numpy() == 1:
         right_cnt += 1
     if i % 100 == 0 or i == len(query_label) - 1:
-        print('i = %4d    CMC_tmp[0] = %s   real time rank1 = %.4f' % (i, CMC_tmp[0].numpy(), float(right_cnt) / (i + 1)))
-
+        print('i = %4d    CMC_tmp[0] = %s  real-time rank1 = %.4f  avg rank1 = %.4f' % (
+        i, CMC_tmp[0].numpy(), float(right_cnt - former_right_cnt) / (i - former_i + 1), float(right_cnt) / (i + 1)))
+        former_right_cnt = right_cnt
+        former_i = i
 
 CMC = CMC.float()
 CMC = CMC / len(query_label)  # average CMC
