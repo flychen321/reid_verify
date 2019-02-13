@@ -599,7 +599,7 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
                 print('epoch = %2d  batch_idx = %4d  loss = %.5f' % (epoch, batch_idx, loss))
             # if batch_idx > 0:
             #     break
-
+        save_network(model_gcn, name, 'gcn' + str(epoch))
     time_elapsed = time.time() - since
     print('time = %f' % (time_elapsed))
     save_network(model_gcn, name, 'best_gcn')
@@ -757,7 +757,7 @@ if stage_2:
     print('model_mid_original = %s' % model_mid.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_mid = load_network_easy(model_mid, name)
     print('model_mid_new = %s' % model_mid.embedding_net.model.features.conv0.weight[0, 0, 0])
-    model_siamese = Sggnn_siamese(model_mid)
+    model_siamese = Sggnn_siamese(model_mid, hard_weight=False)
     print('model_mid_new2 = %s' % model_siamese.basemodel.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_gcn = Sggnn_gcn()
     print('model_gcn = %s' % model_gcn.rf.fc[0].weight[0][:5])

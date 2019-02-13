@@ -16,7 +16,7 @@ def load_network_easy(network, name, model_name=None):
         save_path = os.path.join('./model', name, 'net_%s.pth' % 'last_siamese')
     else:
         save_path = os.path.join('./model', name, 'net_%s.pth' % model_name)
-    print('load whole pretrained model: %s' % save_path)
+    print('load easy pretrained model: %s' % save_path)
     network.load_state_dict(torch.load(save_path))
     return network
 
