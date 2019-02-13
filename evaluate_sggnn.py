@@ -117,6 +117,8 @@ ap = 0.0
 batchsize = 256
 right_cnt = 0
 i = 0
+former_right_cnt = 0
+former_i = 0
 while i < len(query_label):
     ap_tmp, CMC_tmp = evaluate(query_feature[i: min(i + batchsize, len(query_label))],
                                query_label[i: min(i + batchsize, len(query_label))],
@@ -133,7 +135,10 @@ while i < len(query_label):
             right_cnt += 1
 
     i += min(batchsize, len(query_label) - i)
-    print('i = %4d    CMC_tmp[0] = %s   real time rank1 = %.4f' % (i, CMC_tmp[0].numpy(), float(right_cnt) / i))
+    print('i = %4d    CMC_tmp[0] = %s  real-time rank1 = %.4f  avg rank1 = %.4f' % (
+        i, CMC_tmp[0].numpy(), float(right_cnt - former_right_cnt) / (i - former_i), float(right_cnt) / (i)))
+    former_right_cnt = right_cnt
+    former_i = i
 
 CMC = CMC.float()
 CMC = CMC / len(query_label)  # average CMC
