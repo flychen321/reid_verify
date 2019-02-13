@@ -426,7 +426,7 @@ class Sggnn_siamese(nn.Module):
                                                     torch.full_like(y_g[:, i], 0))
                     else:
                         # 1 for similar & 0 for different
-                        w[k, :, i, j] = F.softmax(self.basemodel(x_g[:, i], x_g_temp[:, j])[-1])[:, 1]
+                        w[k, :, i, j] = F.softmax(self.basemodel(x_g[:, i], x_g_temp[:, j])[-1], -1)[:, 1]
 
         # print('run Sggnn_siamese foward success  !!!')
         if y is not None:
