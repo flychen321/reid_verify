@@ -16,7 +16,7 @@ print('-------evaluate-----------')
 name = 'sggnn'
 use_gpu = torch.cuda.is_available()
 model_gcn = Sggnn_for_test()
-model_gcn = load_network(model_gcn, name, 'whole_best_gcn')
+model_gcn = load_network_easy(model_gcn, name, 'best_gcn')
 if use_gpu:
     model = model_gcn.cuda()
 #######################################################################
@@ -38,7 +38,7 @@ def evaluate(qf, ql, qc, gf, gl, gc, model=model):
         index[i] = np.argsort(score)  # from small to large
 
     # operate for sggnn
-    g_num = 100
+    g_num = 200
     with torch.no_grad():
         index_new_100 = model(qf, gf[index[:, :g_num]])
         for i in range(batchsize):
@@ -142,7 +142,8 @@ while i < len(query_label):
 
 CMC = CMC.float()
 CMC = CMC / len(query_label)  # average CMC
-print('Rank@1:%.4f  Rank@5:%.4f  Rank@10:%.4f  mAP:%.4f' % (CMC[0], CMC[4], CMC[9], ap / len(query_label)))
+print('Rank@1:%.4f  Rank@2:%.4f  Rank@5:%.4f  Rank@10:%.4f  mAP:%.4f' % (
+CMC[0], CMC[1], CMC[4], CMC[9], ap / len(query_label)))
 
 # multiple-query
 CMC = torch.IntTensor(len(gallery_label)).zero_()
