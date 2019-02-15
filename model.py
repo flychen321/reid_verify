@@ -554,7 +554,7 @@ class Sggnn_for_test(nn.Module):
             w = w.cuda()
         for i in range(num_g_per_id):
             for j in range(num_g_per_id):
-                w[:, i, j] = (gf[:, i] - gf[:, j]).pow(2).sum()
+                w[:, i, j] = (gf[:, i] - gf[:, j]).pow(2).sum(1)
         for i in range(num_g_per_id):
             t[:, i] = self.rf(d[:, i])
         for i in range(batch_size):
