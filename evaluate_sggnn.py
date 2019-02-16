@@ -38,7 +38,7 @@ def evaluate(qf, ql, qc, gf, gl, gc, model=model):
         index[i] = np.argsort(score)  # from small to large
 
     # operate for sggnn
-    g_num = 200
+    g_num = 100
     with torch.no_grad():
         index_new_100 = model(qf, gf[index[:, :g_num]])
         for i in range(batchsize):

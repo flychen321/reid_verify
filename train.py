@@ -22,7 +22,7 @@ import time
 import os
 # from reid_sampler import StratifiedSampler
 from model import ft_net, ft_net_dense, PCB, verif_net
-from model import Sggnn_siamese, Sggnn_gcn, SiameseNet
+from model import Sggnn_siamese, Sggnn_gcn, SiameseNet, Sggnn_all
 from random_erasing import RandomErasing
 from datasets import TripletFolder, SiameseDataset, SggDataset
 import yaml
@@ -758,9 +758,10 @@ if stage_2:
     print('model_mid_original = %s' % model_mid.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_mid = load_network_easy(model_mid, name)
     print('model_mid_new = %s' % model_mid.embedding_net.model.features.conv0.weight[0, 0, 0])
-    model_siamese = Sggnn_siamese(model_mid, hard_weight=False)
+    model_siamese = Sggnn_siamese(model_mid, hard_weight=True)
     print('model_mid_new2 = %s' % model_siamese.basemodel.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_gcn = Sggnn_gcn()
+    model_gcn = load_network_easy(model_gcn, name, 'best_gcn')
     print('model_gcn = %s' % model_gcn.rf.fc[0].weight[0][:5])
     # cnt = 0
     # for k, v in model_siamese.state_dict():
