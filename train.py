@@ -40,7 +40,7 @@ parser.add_argument('--name', default='ft_ResNet50', type=str, help='output mode
 parser.add_argument('--data_dir', default='data/market/pytorch', type=str, help='training dir path')
 parser.add_argument('--train_all', action='store_true', help='use all training data')
 parser.add_argument('--color_jitter', action='store_true', help='use color jitter in training')
-parser.add_argument('--batchsize', default=3, type=int, help='batchsize')
+parser.add_argument('--batchsize', default=48, type=int, help='batchsize')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--alpha', default=1.0, type=float, help='alpha')
 parser.add_argument('--erasing_p', default=0, type=float, help='Random Erasing probability, in [0,1]')
@@ -589,6 +589,8 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
                 target = (target,)
                 loss_inputs += target
 
+            loss_inputs = tuple(d.cuda() for d in loss_inputs)
+
             loss_outputs = loss_gcn_fn(*loss_inputs)
             loss = loss_outputs[0] if type(loss_outputs) in (tuple, list) else loss_outputs
             losses.append(loss.item())
@@ -607,56 +609,56 @@ def train_gcn(train_loader, model_siamese, loss_siamese_fn, optimizer_siamese, s
     save_whole_network(model_gcn, name, 'whole_best_gcn')
     return model_gcn
 
-def train_all(train_loader, model_all, loss_fn, optimizer_ft, scheduler_gcn, num_epochs=25):
-    global cnt
-    since = time.time()
-    model_all.train(True)
-    losses = []
-    total_loss = 0
-    for epoch in range(num_epochs):
-        scheduler_gcn.step()
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-        print('-' * 10)
-
-        for batch_idx, (data, target) in enumerate(train_loader):
-            target = target if len(target) > 0 else None
-            if not type(data) in (tuple, list):
-                data = (data,)
-            if use_gpu:
-                data = tuple(d.cuda() for d in data)
-                if target is not None:
-                    target = target.cuda()
-
-            optimizer_ft.zero_grad()
-
-            outputs, target = model_all(*data, target)
-
-            if type(outputs) not in (tuple, list):
-                outputs = (outputs,)
-
-            loss_inputs = outputs
-            if target is not None:
-                target = (target,)
-                loss_inputs += target
-
-            loss_inputs = tuple(d.cuda() for d in loss_inputs)
-            loss_outputs = loss_fn(*loss_inputs)
-            loss = loss_outputs[0] if type(loss_outputs) in (tuple, list) else loss_outputs
-            losses.append(loss.item())
-            total_loss += loss.item()
-            loss.backward()
-            optimizer_ft.step()
-            if batch_idx % 5 == 0:
-                print('epoch = %2d  batch_idx = %4d  loss = %.5f' % (epoch, batch_idx, loss))
-            # if batch_idx > 0:
-            #     break
-        save_network(model_all, name, 'gcn' + str(epoch))
-        save_whole_network(model_all, name, 'whole_gcn' + str(epoch))
-    time_elapsed = time.time() - since
-    print('time = %f' % (time_elapsed))
-    save_network(model_all, name, 'best_gcn')
-    save_whole_network(model_all, name, 'whole_best_gcn')
-    return model_all
+# def train_all(train_loader, model_all, loss_fn, optimizer_ft, scheduler_gcn, num_epochs=25):
+#     global cnt
+#     since = time.time()
+#     model_all.train(True)
+#     losses = []
+#     total_loss = 0
+#     for epoch in range(num_epochs):
+#         scheduler_gcn.step()
+#         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+#         print('-' * 10)
+#
+#         for batch_idx, (data, target) in enumerate(train_loader):
+#             target = target if len(target) > 0 else None
+#             if not type(data) in (tuple, list):
+#                 data = (data,)
+#             if use_gpu:
+#                 data = tuple(d.cuda() for d in data)
+#                 if target is not None:
+#                     target = target.cuda()
+#
+#             optimizer_ft.zero_grad()
+#
+#             outputs, target = model_all(*data, target)
+#
+#             if type(outputs) not in (tuple, list):
+#                 outputs = (outputs,)
+#
+#             loss_inputs = outputs
+#             if target is not None:
+#                 target = (target,)
+#                 loss_inputs += target
+#
+#             loss_inputs = tuple(d.cuda() for d in loss_inputs)
+#             loss_outputs = loss_fn(*loss_inputs)
+#             loss = loss_outputs[0] if type(loss_outputs) in (tuple, list) else loss_outputs
+#             losses.append(loss.item())
+#             total_loss += loss.item()
+#             loss.backward()
+#             optimizer_ft.step()
+#             if batch_idx % 5 == 0:
+#                 print('epoch = %2d  batch_idx = %4d  loss = %.5f' % (epoch, batch_idx, loss))
+#             # if batch_idx > 0:
+#             #     break
+#         save_network(model_all, name, 'gcn' + str(epoch))
+#         save_whole_network(model_all, name, 'whole_gcn' + str(epoch))
+#     time_elapsed = time.time() - since
+#     print('time = %f' % (time_elapsed))
+#     save_network(model_all, name, 'best_gcn')
+#     save_whole_network(model_all, name, 'whole_best_gcn')
+#     return model_all
 ######################################################################
 # Draw Curve
 # ---------------------------
@@ -759,8 +761,8 @@ with open('%s/opts.yaml' % dir_name, 'w') as fp:
 
 stage_0 = False
 stage_1 = False
-stage_2 = False
-stage_3 = True
+stage_2 = True
+stage_3 = False
 
 if stage_0:
     print('train_model_siamese_with_two_model structure')
@@ -808,7 +810,7 @@ if stage_2:
     print('model_mid_original = %s' % model_mid.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_mid = load_network_easy(model_mid, name)
     print('model_mid_new = %s' % model_mid.embedding_net.model.features.conv0.weight[0, 0, 0])
-    model_siamese = Sggnn_siamese(model_mid, hard_weight=True)
+    model_siamese = Sggnn_siamese(model_mid, hard_weight=False)
     print('model_mid_new2 = %s' % model_siamese.basemodel.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_gcn = Sggnn_gcn()
     model_gcn = load_network_easy(model_gcn, name, 'best_gcn')
@@ -837,27 +839,27 @@ if stage_2:
     model = train_gcn(dataloaders_gcn['train'], model_siamese, loss_siamese_fn, optimizer_siamese, scheduler_siamese,
                       model_gcn, loss_gcn_fn, optimizer_gcn, scheduler_gcn, num_epochs=n_epochs)
 
-if stage_3:
-    margin = 1.
-    embedding_net = ft_net_dense(len(class_names))
-    model_mid = SiameseNet(embedding_net)
-    model_mid = load_network_easy(model_mid, name)
-    model_all = Sggnn_all(model_mid, hard_weight=True)
-    # cnt = 0
-    # for k, v in model_siamese.state_dict():
-    #     print(k, v)
-    #     cnt += 1
-    # print(cnt)
-    # exit()
-    # print(model_all)
-    if use_gpu:
-        model_all.cuda()
-    loss_fn = nn.CrossEntropyLoss()
-    lr = 1e-3
-    n_epochs = 5
-    optimizer_ft = optim.SGD([
-        {'params': model_all.rf.parameters(), 'lr': 1 * opt.lr},
-        {'params': model_all.classifier.parameters(), 'lr': 1 * opt.lr},
-    ], weight_decay=5e-4, momentum=0.9, nesterov=True)
-    scheduler_gcn = lr_scheduler.StepLR(optimizer_ft, 2, gamma=0.1, last_epoch=-1)
-    model = train_all(dataloaders_gcn['train'], model_all, loss_fn, optimizer_ft, scheduler_gcn, num_epochs=n_epochs)
+# if stage_3:
+#     margin = 1.
+#     embedding_net = ft_net_dense(len(class_names))
+#     model_mid = SiameseNet(embedding_net)
+#     model_mid = load_network_easy(model_mid, name)
+#     model_all = Sggnn_all(model_mid, hard_weight=True)
+#     # cnt = 0
+#     # for k, v in model_siamese.state_dict():
+#     #     print(k, v)
+#     #     cnt += 1
+#     # print(cnt)
+#     # exit()
+#     # print(model_all)
+#     if use_gpu:
+#         model_all.cuda()
+#     loss_fn = nn.CrossEntropyLoss()
+#     lr = 1e-3
+#     n_epochs = 5
+#     optimizer_ft = optim.SGD([
+#         {'params': model_all.rf.parameters(), 'lr': 1 * opt.lr},
+#         {'params': model_all.classifier.parameters(), 'lr': 1 * opt.lr},
+#     ], weight_decay=5e-4, momentum=0.9, nesterov=True)
+#     scheduler_gcn = lr_scheduler.StepLR(optimizer_ft, 2, gamma=0.1, last_epoch=-1)
+#     model = train_all(dataloaders_gcn['train'], model_all, loss_fn, optimizer_ft, scheduler_gcn, num_epochs=n_epochs)

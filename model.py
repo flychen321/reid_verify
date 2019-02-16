@@ -369,9 +369,9 @@ class SiameseNet(nn.Module):
         return self.embedding_net(x)
 
 
-class Sggnn_siamese(nn.Module):
+class Sggnn_siamese_original(nn.Module):
     def __init__(self, siamesemodel, hard_weight=True):
-        super(Sggnn_siamese, self).__init__()
+        super(Sggnn_siamese_original, self).__init__()
         self.basemodel = siamesemodel
         self.hard_weight = hard_weight
 
@@ -439,6 +439,105 @@ class Sggnn_siamese(nn.Module):
             return d, w
 
 
+class Sggnn_gcn_original(nn.Module):
+    def __init__(self):
+        super(Sggnn_gcn_original, self).__init__()
+        self.rf = ReFineBlock(layer=2)
+        self.classifier = Fc_ClassBlock(input_dim=512, class_num=2, dropout=0.75, relu=False)
+
+    def forward(self, d, w, label=None):
+        use_gpu = torch.cuda.is_available()
+        batch_size = len(d[0])
+        num_p_per_id = len(d[0][0])  # 1
+        num_g_per_id = len(d[0][0][0])  # 3
+        num_p_per_batch = len(d[0]) * len(d[0][0])  # 48
+        num_g_per_batch = len(d[0]) * len(d[0][0][0])  # 144
+        len_feature = d.shape[-1]
+        t = torch.FloatTensor(d.shape).zero_()
+        d_new = torch.FloatTensor(d.shape).zero_()
+        result = torch.FloatTensor(d.shape[: -1] + (2,)).zero_()
+        if use_gpu:
+            d = d.cuda()
+            d_new = d_new.cuda()
+            t = t.cuda()
+            w = w.cuda()
+            result = result.cuda()
+            if label is not None:
+                label = label.cuda()
+
+        # print('batch_size = %d  num_p_per_batch = %d  num_g_per_batch = %d' % (batch_size, num_p_per_batch, num_g_per_batch))
+        for k in range(batch_size):
+            for i in range(num_p_per_id):
+                for j in range(num_g_per_id):
+                    t[k, :, i, j] = self.rf(d[k, :, i, j])
+
+        d = d.reshape(batch_size, -1, len_feature)
+        d_new = d_new.reshape(batch_size, -1, len_feature)
+        t = t.reshape(d.shape)
+        w = w.reshape(batch_size * num_g_per_id, -1)
+        result = result.reshape(batch_size, -1, 2)
+        if label is not None:
+            label = label.reshape(batch_size, -1)
+
+        # w need to be normalized
+        w = w - w.diag().diag().cuda()
+        w = self.preprocess_adj(w)
+        for i in range(t.shape[-1]):
+            d_new[:, :, i] = torch.mm(t[:, :, i], w)
+
+        # maybe need to fix
+        for i in range(num_p_per_batch):
+            feature = self.classifier.classifier(d_new[i, :])
+            result[i, :] = feature.squeeze()
+
+        result = result.view((num_p_per_batch * num_g_per_batch), -1)
+        if label is not None:
+            label = label.view(label.size(0) * label.size(1))
+
+        # print('run Sggnn_gcn foward success  !!!')
+        if label is not None:
+            return result, label
+        else:
+            return result
+
+    def normalize(self, mx):
+        """Row-normalize sparse matrix"""
+        rowsum = np.array(mx.sum(1))
+        r_inv = np.power(rowsum, -1).flatten()
+        r_inv[np.isinf(r_inv)] = 0.
+        r_mat_inv = sp.diags(r_inv)
+        mx = r_mat_inv.dot(mx)
+        return mx
+
+    def preprocess_features(self, features):
+        """Row-normalize feature matrix and convert to tuple representation"""
+        rowsum = np.array(features.sum(1))
+        r_inv = np.power(rowsum, -1).flatten()
+        r_inv[np.isinf(r_inv)] = 0.
+        r_mat_inv = sp.diags(r_inv)
+        features = r_mat_inv.dot(features)
+        return features
+
+    def preprocess_adj_np(self, adj):
+        """Symmetrically normalize adjacency matrix."""
+        adj = adj + sp.eye(adj.shape[0])
+        adj = sp.coo_matrix(adj)
+        rowsum = np.array(adj.sum(1))
+        d_inv_sqrt = np.power(rowsum, -0.5).flatten()
+        d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+        d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+        return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocoo()
+
+    def preprocess_adj(self, adj):
+        """Symmetrically normalize adjacency matrix."""
+        adj = adj + torch.eye(adj.shape[0]).cuda()
+        rowsum = torch.Tensor(adj.sum(1).cpu()).cuda()
+        d_inv_sqrt = torch.pow(rowsum, -0.5).flatten()
+        d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.
+        d_mat_inv_sqrt = torch.diag(d_inv_sqrt)
+        return adj.mm(d_mat_inv_sqrt).transpose(0, 1).mm(d_mat_inv_sqrt)
+
+# There maybe some problems in sggnn_all
 class Sggnn_all(nn.Module):
     def __init__(self, siamesemodel, hard_weight=True):
         super(Sggnn_all, self).__init__()
@@ -542,6 +641,56 @@ class Sggnn_all(nn.Module):
         d_mat_inv_sqrt = torch.diag(d_inv_sqrt)
         return adj.mm(d_mat_inv_sqrt).transpose(0, 1).mm(d_mat_inv_sqrt)
 
+class Sggnn_siamese(nn.Module):
+    def __init__(self, siamesemodel, hard_weight=True):
+        super(Sggnn_siamese, self).__init__()
+        self.basemodel = siamesemodel
+        self.hard_weight = hard_weight
+
+    def forward(self, x, y=None):
+        use_gpu = torch.cuda.is_available()
+        batch_size = len(x)
+        x_p = x[:, 0]
+        x_g = x[:, 1:]
+        num_p_per_batch = len(x_p)  # 48
+        num_g_per_batch = len(x_g) * len(x_g[0])  # 144
+        len_feature = 512
+        d = torch.FloatTensor(num_p_per_batch, num_g_per_batch, len_feature).zero_()
+        # this w for dynamic calculate the weight
+        # this w for calculate the weight by label too
+        w = torch.FloatTensor(num_g_per_batch, num_g_per_batch).zero_()
+        label = torch.LongTensor(num_p_per_batch, num_g_per_batch).zero_()
+
+        if use_gpu:
+            d = d.cuda()
+            w = w.cuda()
+            label = label.cuda()
+        if y is not None:
+            y_p = y[:, 0]
+            y_g = y[:, 1:]
+
+        x_g = x_g.reshape((-1,) + x_g.shape[2:])
+        y_g = y_g.reshape((-1,) + y_g.shape[2:])
+
+        for i in range(num_p_per_batch):
+            d[i, :] = self.basemodel(x_p[i].unsqueeze(0).repeat(len(x_g), 1, 1, 1), x_g)[-2]
+            if y is not None:
+                label[i, :] = torch.where(y_p[i].unsqueeze(0) == y_g, torch.full_like(label[i, :], 1),
+                                          torch.full_like(label[i, :], 0))
+        for i in range(num_g_per_batch):
+            if self.hard_weight and y is not None:
+                w[i, :] = torch.where(y_g[i].unsqueeze(0) == y_g, torch.full_like(w[i, :], 1),
+                                      torch.full_like(w[i, :], 0))
+            else:
+                # model output 1 for similar & 0 for different
+                w[i, :] = F.softmax(self.basemodel(x_g[i].unsqueeze(0).repeat(len(x_g), 1, 1, 1), x_g)[-1], -1)[:, -1]
+                # w[i, :] = self.basemodel(x_g[i].unsqueeze(0), x_g)[-2]
+
+        if y is not None:
+            return d, w, label
+        else:
+            return d, w
+
 
 class Sggnn_gcn(nn.Module):
     def __init__(self):
@@ -551,40 +700,24 @@ class Sggnn_gcn(nn.Module):
 
     def forward(self, d, w, label=None):
         use_gpu = torch.cuda.is_available()
-        batch_size = len(d[0])
-        num_p_per_id = len(d[0][0])  # 1
-        num_g_per_id = len(d[0][0][0])  # 3
-        num_p_per_batch = len(d[0]) * len(d[0][0])  # 48
-        num_g_per_batch = len(d[0]) * len(d[0][0][0])  # 144
-        len_feature = d.shape[-1]
+        batch_size = len(d)
+        num_p_per_batch = len(d)  # 48
+        num_g_per_batch = len(w)  # 144
         t = torch.FloatTensor(d.shape).zero_()
         d_new = torch.FloatTensor(d.shape).zero_()
         result = torch.FloatTensor(d.shape[: -1] + (2,)).zero_()
+
         if use_gpu:
             d = d.cuda()
-            d_new = d_new.cuda()
             t = t.cuda()
+            d_new = d_new.cuda()
             w = w.cuda()
-            result = result.cuda()
-            if label is not None:
-                label = label.cuda()
+            label = label.cuda()
 
-        # print('batch_size = %d  num_p_per_batch = %d  num_g_per_batch = %d' % (batch_size, num_p_per_batch, num_g_per_batch))
-        for k in range(batch_size):
-            for i in range(num_p_per_id):
-                for j in range(num_g_per_id):
-                    t[k, :, i, j] = self.rf(d[k, :, i, j])
-
-        d = d.reshape(batch_size, -1, len_feature)
-        d_new = d_new.reshape(batch_size, -1, len_feature)
-        t = t.reshape(d.shape)
-        w = w.reshape(batch_size * num_g_per_id, -1)
-        result = result.reshape(batch_size, -1, 2)
-        if label is not None:
-            label = label.reshape(batch_size, -1)
+        for i in range(num_p_per_batch):
+            t[i, :] = self.rf(d[i, :])
 
         # w need to be normalized
-        w = w - w.diag().diag().cuda()
         w = self.preprocess_adj(w)
         for i in range(t.shape[-1]):
             d_new[:, :, i] = torch.mm(t[:, :, i], w)
@@ -622,16 +755,6 @@ class Sggnn_gcn(nn.Module):
         features = r_mat_inv.dot(features)
         return features
 
-    def preprocess_adj_np(self, adj):
-        """Symmetrically normalize adjacency matrix."""
-        adj = adj + sp.eye(adj.shape[0])
-        adj = sp.coo_matrix(adj)
-        rowsum = np.array(adj.sum(1))
-        d_inv_sqrt = np.power(rowsum, -0.5).flatten()
-        d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-        d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-        return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocoo()
-
     def preprocess_adj(self, adj):
         """Symmetrically normalize adjacency matrix."""
         adj = adj + torch.eye(adj.shape[0]).cuda()
@@ -640,7 +763,6 @@ class Sggnn_gcn(nn.Module):
         d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = torch.diag(d_inv_sqrt)
         return adj.mm(d_mat_inv_sqrt).transpose(0, 1).mm(d_mat_inv_sqrt)
-
 
 class Sggnn_for_test(nn.Module):
     def __init__(self):
@@ -665,13 +787,11 @@ class Sggnn_for_test(nn.Module):
             for j in range(num_g_per_id):
                 # w[:, i, j] = (gf[:, i] - gf[:, j]).pow(2).sum(1)
                 # or
-                w[:, i, j] = F.softmax(self.classifier.classifier((gf[:, i] - gf[:, j]).pow(2)), -1)[:, 0]
+                w[:, i, j] = F.softmax(self.classifier.classifier((gf[:, i] - gf[:, j]).pow(2)), -1)[:, -1]
         for i in range(num_g_per_id):
             t[:, i] = self.rf(d[:, i])
         ratio = 0.5
         for i in range(batch_size):
-            # w[i] = (-w[i]).exp()
-            w[i] = w[i] - w[i].diag().diag().cuda()
             w[i] = self.preprocess_adj(w[i])
             for j in range(t.shape[-1]):
                 d_new[i, :, j] = torch.mm(t[i, :, j].unsqueeze(0), w[i])
