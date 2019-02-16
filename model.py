@@ -452,9 +452,7 @@ class Sggnn_all(nn.Module):
         batch_size = len(x)
         x_p = x[:, 0]
         x_g = x[:, 1:]
-        num_p_per_id = len(x_p[0])  # 1
-        num_g_per_id = len(x_g[0])  # 3
-        num_p_per_batch = len(x_p) * len(x_p[0])  # 48
+        num_p_per_batch = len(x_p)  # 48
         num_g_per_batch = len(x_g) * len(x_g[0])  # 144
         len_feature = 512
         d = torch.FloatTensor(num_p_per_batch, num_g_per_batch, len_feature).zero_()
@@ -480,17 +478,17 @@ class Sggnn_all(nn.Module):
         y_g = y_g.reshape((-1,) + y_g.shape[2:])
 
         for i in range(num_p_per_batch):
-            d[i, :] = self.basemodel(x_p[i].unsqueeze(0), x_g)[-2]
+            d[i, :] = self.basemodel(x_p[i].unsqueeze(0).repeat(len(x_g), 1, 1, 1), x_g)[-2]
             if y is not None:
-                label[i, :] = torch.where(y_p[i].unsqueeze(0) == y_g, torch.full_like(y_p[i, :], 1),
-                                          torch.full_like(y_p[i, :], 0))
+                label[i, :] = torch.where(y_p[i].unsqueeze(0) == y_g, torch.full_like(label[i, :], 1),
+                                          torch.full_like(label[i, :], 0))
         for i in range(num_g_per_batch):
             if self.hard_weight and y is not None:
-                w[i, :] = torch.where(y_g[i].unsqueeze(0) == y_g, torch.full_like(y_g[i, :], 1),
-                                      torch.full_like(y_g[i, :], 0))
+                w[i, :] = torch.where(y_g[i].unsqueeze(0) == y_g, torch.full_like(w[i, :], 1),
+                                      torch.full_like(w[i, :], 0))
             else:
                 # model output 1 for similar & 0 for different
-                w[i, :] = F.softmax(self.basemodel(x_g[i].unsqueeze(0), x_g)[-1], -1)[:, 0]
+                w[i, :] = F.softmax(self.basemodel(x_g[i].unsqueeze(0).repeat(len(x_g), 1, 1, 1), x_g)[-1], -1)[:, 0]
                 # w[i, :] = self.basemodel(x_g[i].unsqueeze(0), x_g)[-2]
 
         for i in range(num_p_per_batch):
