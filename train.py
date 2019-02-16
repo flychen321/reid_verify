@@ -813,7 +813,7 @@ if stage_2:
     model_siamese = Sggnn_siamese(model_mid, hard_weight=False)
     print('model_mid_new2 = %s' % model_siamese.basemodel.embedding_net.model.features.conv0.weight[0, 0, 0])
     model_gcn = Sggnn_gcn()
-    model_gcn = load_network_easy(model_gcn, name, 'best_gcn')
+    # model_gcn = load_network_easy(model_gcn, name, 'best_gcn')
     print('model_gcn = %s' % model_gcn.rf.fc[0].weight[0][:5])
     # cnt = 0
     # for k, v in model_siamese.state_dict():
