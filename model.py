@@ -684,7 +684,7 @@ class Sggnn_siamese(nn.Module):
             else:
                 # model output 1 for similar & 0 for different
                 w[i, :] = F.softmax(self.basemodel(x_g[i].unsqueeze(0).repeat(len(x_g), 1, 1, 1), x_g)[-1], -1)[:, -1]
-                # w[i, :] = self.basemodel(x_g[i].unsqueeze(0), x_g)[-2]
+                # w[i, :] = self.basemodel(x_g[i].unsqueeze(0), x_g)[-2].sum(1)
 
         if y is not None:
             return d, w, label
