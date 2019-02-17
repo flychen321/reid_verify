@@ -785,7 +785,8 @@ class Sggnn_for_test(nn.Module):
             w = w.cuda()
         for i in range(num_g_per_id):
             for j in range(num_g_per_id):
-                # w[:, i, j] = (gf[:, i] - gf[:, j]).pow(2).sum(1)
+                # w[:, i, j] = (gf[:, i] - gf[:, j]).pow(2).sum(-1)
+                # w[:, i, j] = (-w[:, i, j]).exp()
                 # or
                 w[:, i, j] = F.softmax(self.classifier.classifier((gf[:, i] - gf[:, j]).pow(2)), -1)[:, -1]
         for i in range(num_g_per_id):
@@ -798,8 +799,12 @@ class Sggnn_for_test(nn.Module):
                 # d_new[i, :, j] = ratio * d_new[i, :, j] + (1 - ratio) * d[i, :, j]
                 # without d -> t
                 # d_new[i, :, j] = torch.mm(d[i, :, j].unsqueeze(0), w[i])
+        # d_new is different from (pf - gf).pow(2)
+        # result = d_new.pow(2).sum(-1)
+        # result = (-result).exp()
+        # or
         # 1 for similar & 0 for different
-        result = F.softmax(self.classifier.classifier(d_new), -1)[:, :, 1]
+        result = F.softmax(self.classifier.classifier(d_new), -1)[:, :, -1]
         _, index = torch.sort(result, -1, descending=True)
         return index
 
