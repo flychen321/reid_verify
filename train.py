@@ -526,6 +526,7 @@ def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
                 best_loss = epoch_loss
                 best_epoch = epoch
                 save_network(model, name, 'best_siamese')
+                save_network(model, name, 'best_siamese_' + str(opt.net_loss_model))
                 save_whole_network(model, name, 'whole_best_siamese')
 
             y_loss[phase].append(epoch_id_loss)
@@ -547,6 +548,7 @@ def train_model_siamese(model, criterion, optimizer, scheduler, num_epochs=25):
     # load best model weights
     model.load_state_dict(last_model_wts)
     save_network(model, name, 'last_siamese')
+    save_network(model, name, 'last_siamese_' + str(opt.net_loss_model))
     save_whole_network(model, name, 'whole_last_siamese')
     return model
 
@@ -760,8 +762,8 @@ with open('%s/opts.yaml' % dir_name, 'w') as fp:
     yaml.dump(vars(opt), fp, default_flow_style=False)
 
 stage_0 = False
-stage_1 = False
-stage_2 = True
+stage_1 = True
+stage_2 = False
 stage_3 = False
 
 if stage_0:
@@ -779,13 +781,13 @@ if stage_1:
     if use_gpu:
         model_siamese.cuda()
     print('model_siamese structure')
-    print(model_siamese)
+    # print(model_siamese)
 
-    stage_1_classifier_id = list(map(id, model_siamese.embedding_net.classifier.parameters())) \
-                            + list(map(id, model_siamese.embedding_net.model.fc.parameters())) \
-                            + list(map(id, model_siamese.classifier.parameters()))
-    stage_1_classifier_params = filter(lambda p: id(p) in stage_1_classifier_id, model_siamese.parameters())
-    stage_1_base_params = filter(lambda p: id(p) not in stage_1_classifier_id, model_siamese.parameters())
+    # stage_1_classifier_id = list(map(id, model_siamese.embedding_net.classifier.parameters())) \
+    #                         + list(map(id, model_siamese.embedding_net.model.fc.parameters())) \
+    #                         + list(map(id, model_siamese.classifier.parameters()))
+    # stage_1_classifier_params = filter(lambda p: id(p) in stage_1_classifier_id, model_siamese.parameters())
+    # stage_1_base_params = filter(lambda p: id(p) not in stage_1_classifier_id, model_siamese.parameters())
 
     # This manner's effect is worse than SGD
     # optimizer_ft = optim.Adam([
@@ -793,9 +795,23 @@ if stage_1:
     #     {'params': stage_1_classifier_params, 'lr': 1 * opt.lr},
     # ])
 
+    # optimizer_ft = optim.SGD([
+    #     {'params': stage_1_base_params, 'lr': 0.1 * opt.lr},
+    #     {'params': stage_1_classifier_params, 'lr': 1 * opt.lr},
+    # ], weight_decay=5e-4, momentum=0.9, nesterov=True)
+
+    stage_1_classifier_id = list(map(id, model_siamese.embedding_net.classifier.parameters())) \
+                            + list(map(id, model_siamese.embedding_net.model.fc.parameters()))
+    stage_1_verify_id = list(map(id, model_siamese.classifier.parameters())) \
+                        + list(map(id, model_siamese.bn.parameters()))
+    stage_1_classifier_params = filter(lambda p: id(p) in stage_1_classifier_id, model_siamese.parameters())
+    stage_1_verify_params = filter(lambda p: id(p) in stage_1_verify_id, model_siamese.parameters())
+    stage_1_base_params = filter(lambda p: id(p) not in stage_1_classifier_id + stage_1_verify_id, model_siamese.parameters())
+
     optimizer_ft = optim.SGD([
         {'params': stage_1_base_params, 'lr': 0.1 * opt.lr},
         {'params': stage_1_classifier_params, 'lr': 1 * opt.lr},
+        {'params': stage_1_verify_params, 'lr': 1 * opt.lr},
     ], weight_decay=5e-4, momentum=0.9, nesterov=True)
 
     # exp_lr_scheduler = lr_scheduler.MultiStepLR(optimizer_ft, milestones=[40, 60], gamma=0.1)

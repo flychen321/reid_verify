@@ -172,6 +172,19 @@ class ClassBlock(nn.Module):
         return x
 
 
+class BN(nn.Module):
+    def __init__(self, input_dim=512):
+        super(BN, self).__init__()
+        bn = []
+        bn += [nn.BatchNorm1d(input_dim)]
+        bn = nn.Sequential(*bn)
+        bn.apply(weights_init_kaiming)
+        self.bn = bn
+
+    def forward(self, x):
+        x = self.bn(x)
+        return x
+
 # Define the ResNet50-based Model
 class ft_net(nn.Module):
 
@@ -350,6 +363,7 @@ class SiameseNet(nn.Module):
         super(SiameseNet, self).__init__()
         self.embedding_net = embedding_net
         self.classifier = Fc_ClassBlock(512, 2, dropout=0.75, relu=False)
+        # self.bn = BN(512)
 
     def forward(self, x1, x2=None):
         output1, feature1 = self.embedding_net(x1)
@@ -360,6 +374,8 @@ class SiameseNet(nn.Module):
 
         # f_norm = feature.norm(p=2, dim=1, keepdim=True) + 1e-8
         # feature = feature.div(f_norm)
+
+        # feature = self.bn(feature)
 
         result = self.classifier.classifier(feature)
         return output1, feature1, output2, feature2, feature, result

@@ -16,7 +16,7 @@ print('-------evaluate-----------')
 name = 'sggnn'
 use_gpu = torch.cuda.is_available()
 model_gcn = Sggnn_for_test()
-model_gcn = load_network_easy(model_gcn, name, 'best_gcn')
+model_gcn = load_network_easy(model_gcn, name, 'gcn0')
 if use_gpu:
     model = model_gcn.cuda()
 #######################################################################
