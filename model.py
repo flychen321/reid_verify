@@ -527,7 +527,7 @@ class Sggnn_siamese(nn.Module):
                                           torch.full_like(label[i, :], 0))
         for i in range(num_g_per_batch):
             if self.hard_weight and y is not None:
-                w[i, :] = torch.where(y_g[i].unsqueeze(0) == y_g, torch.full_like(w[i, :], 1),
+                w[i, :] = torch.where(y_g[i].unsqueeze(0) == y_g, torch.full_like(w[i, :], 3),
                                       torch.full_like(w[i, :], 0))
             else:
                 # model output 1 for similar & 0 for different
@@ -535,6 +535,7 @@ class Sggnn_siamese(nn.Module):
                 # #or
                 w[i, :] = self.basemodel(x_g[i].unsqueeze(0), x_g)[-2].sum(-1)
                 w[i, :] = (-w[i, :]).exp()
+                # w[i, :] = w[i, :] * (-3.0)
 
         if y is not None:
             return d, w, label
@@ -645,25 +646,30 @@ class Sggnn_for_test(nn.Module):
             for j in range(num_g_per_id):
                 w[:, i, j] = (gf[:, i] - gf[:, j]).pow(2).sum(-1)
                 w[:, i, j] = (-w[:, i, j]).exp()
+                # w[i, :] = w[i, :] * (-3.0)
                 # #or
                 # w[:, i, j] = F.softmax(self.classifier.classifier((gf[:, i] - gf[:, j]).pow(2)), -1)[:, -1]
         for i in range(num_g_per_id):
             t[:, i] = self.rf(d[:, i])
-        ratio = 0.9
+        ratio = 0.1
         for i in range(batch_size):
             # w[i] = self.preprocess_adj(w[i])
             w[i] = self.preprocess_sggnn_adj(w[i])
             for j in range(t.shape[-1]):
+                # d_new[i, :, j] = t[i, :, j]
+                # #or
                 d_new[i, :, j] = torch.mm(t[i, :, j].unsqueeze(0), w[i])
                 d_new[i, :, j] = ratio * d_new[i, :, j] + (1 - ratio) * d[i, :, j]
-                # without d -> t
+                # #or without d -> t
                 # d_new[i, :, j] = torch.mm(d[i, :, j].unsqueeze(0), w[i])
+                # d_new[i, :, j] = ratio * d_new[i, :, j] + (1 - ratio) * d[i, :, j]
         # d_new is different from (pf - gf).pow(2)
-        result = d_new.pow(2).sum(-1)
-        result = (-result).exp()
+        # result = d_new.pow(2).sum(-1)
+        # #result = (-result).exp()
+        # w[i, :] = w[i, :] * (-3.0)
         # #or
         # 1 for similar & 0 for different
-        # result = F.softmax(self.classifier.classifier(d_new), -1)[:, :, -1]
+        result = F.softmax(self.classifier.classifier(d_new), -1)[:, :, -1]
         _, index = torch.sort(result, -1, descending=True)
         return index
 
